@@ -1,19 +1,53 @@
 # Sedit
 
-A small browser-based video/audio editor. Trim, crop, change speed, and stack layers — all client-side, no upload, no install.
+A small browser-based video/audio editor. Trim, crop, change speed, and stack layers — all client-side, no upload, no server.
+
+Built with React + Vite. Use Chrome or Edge (best `MediaRecorder` support).
 
 ## Run it
 
-Open `index.html` in Chrome or Edge (best `MediaRecorder` support).
-
-If your browser is picky about local files, serve it instead:
-
 ```
-cd sedit
-python3 -m http.server 8080
+npm install
+npm run dev
 ```
 
-then visit `http://localhost:8080`.
+To produce a static build in `dist/`:
+
+```
+npm run build
+npm run preview
+```
+
+## Project layout
+
+```
+src/
+  main.jsx            entry
+  App.jsx             state, wiring, export
+  style.css
+  components/
+    TopBar.jsx        brand, filename, format, export
+    LayersPanel.jsx   layer list (memo'd: ignores playhead ticks)
+    Preview.jsx       canvas + selection and crop overlays, pointer drags
+    Transport.jsx     play/pause, crop toggle, aspect lock
+    Timeline.jsx      trim handles, scrubbing, playhead
+    Properties.jsx    per-layer controls (memo'd)
+    Icon.jsx          inline SVG icon set and logo
+  hooks/
+    usePlayback.js    rAF clock, media sync, seek/play/pause
+    useTheme.js       light/dark, persisted
+  lib/
+    time.js           speed, layer footprint, active window, source mapping
+    geometry.js       crop math and aspect-ratio locking
+    render.js         canvas compositor
+    formats.js        MediaRecorder format detection
+    media.js          media elements and the WebAudio graph
+```
+
+The canvas compositor and the playback clock stay imperative on purpose:
+they run every frame, so they live in refs and plain functions rather than
+React state. React owns the UI; `usePlayback` commits the current time into
+state once per frame for the components that display it.
 
 ## Using it
 

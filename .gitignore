@@ -11,3 +11,8 @@
 shot-*.html
 test-*.html
 *.log
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
