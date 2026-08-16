@@ -58,7 +58,7 @@ state once per frame for the components that display it.
 - **Layers panel** (left) — select, hide, reorder, delete.
 - **Properties panel** (right) — split into **Project** (output frame size and total length, always visible) and **Layer** (size in output pixels, crop, opacity, speed, volume/mute, duration for stills). Volume is disabled while a layer is muted.
 - **Speed** — 0.25×–4×, set **per layer** in the Layer section. Each clip runs at its own rate, and the panel shows how long it ends up on the timeline (a 12s clip at 2× takes 6s). Stills have no speed — set their Duration instead.
-- **Timeline** (bottom) — drag the two handles to trim the project start and end; click or drag the bar to scrub. **Zoom** with the +/- buttons (up to 40x, **Fit** returns to full width) when you need finer positioning. Audio clips sit in their own lane below: drag the middle to move a clip in time, drag either **end** to trim it.
+- **Timeline** (bottom) — drag the two handles to trim the project start and end; click or drag the bar to scrub. **Zoom** with the +/- buttons (25% out to 40x in; **Fit** returns to full width) when you need finer positioning. Audio clips sit in their own lane below: drag the middle to move a clip in time, drag either **end** to trim it.
 - **Clip length** — an audio track can be cut to a window of its source, set by dragging its ends or by the *Trim from* / *Length* fields. Trimming picks which part you hear; speed then decides how long that part takes to play, so a 15s window at 2x occupies 7.5s of timeline.
 - **Crop** — cropping is **per layer** and works as a process, from the Layer section of the right panel:
   1. Select a video or image layer and press **Crop layer**.

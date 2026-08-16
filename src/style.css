@@ -659,6 +659,18 @@ kbd{
   letter-spacing: 0.05em;
 }
 
+/* magnetic snap guides */
+.snap-guide{
+  position: absolute;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 0 6px var(--accent-dim);
+}
+
+.snap-guide-v{ top: 0; bottom: 0; width: 1px; }
+.snap-guide-h{ left: 0; right: 0; height: 1px; }
+
 /* rule-of-thirds guides inside the crop rect */
 .crop-thirds{
   position: absolute;

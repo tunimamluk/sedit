@@ -323,26 +323,14 @@ export default function App() {
     setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
 
-  /* Edge drags arrive in *source* seconds. Trimming the start also shifts the
-     clip's timeline offset, so the audio you kept stays where it was. */
-  const trimTrack = useCallback((id, { deltaStart, deltaEnd }) => {
-    setTracks((ts) =>
-      ts.map((t) => {
-        if (t.id !== id) return t;
-        const dur = t.duration || 0;
-        const from = t.clipStart || 0;
-        const to = t.clipEnd != null ? t.clipEnd : dur;
-        const speed = t.speed || 1;
-        const MIN = 0.05;
-
-        if (deltaStart != null) {
-          const next = clamp(from + deltaStart, 0, to - MIN);
-          return { ...t, clipStart: next, offset: Math.max(0, t.offset + (next - from) / speed) };
-        }
-        return { ...t, clipEnd: clamp(to + deltaEnd, from + MIN, dur) };
-      })
-    );
-  }, []);
+  /* The timeline sends absolute values computed from a baseline captured at
+     pointerdown, so this is a plain patch -- no accumulation here. */
+  const trimTrack = useCallback(
+    (id, patch) => {
+      patchTrack(id, patch);
+    },
+    [patchTrack]
+  );
 
   const removeTrack = useCallback((id) => {
     disposeMedia(mediaRef.current, id);
@@ -690,7 +678,7 @@ export default function App() {
             onMoveTrack={(id, offset) => patchTrack(id, { offset })}
             onTrimTrack={trimTrack}
             zoom={zoom}
-            onZoom={(z) => setZoom(clamp(z, 1, 40))}
+            onZoom={(fn) => setZoom((z) => clamp(fn(z), 0.25, 40))}
             disabled={!hasMedia}
           />
         </section>

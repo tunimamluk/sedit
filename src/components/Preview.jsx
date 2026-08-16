@@ -5,6 +5,58 @@ import { cropPixelRatio, parseAspect, resizeCrop } from "../lib/geometry.js";
 const HANDLES = ["nw", "ne", "sw", "se"];
 const FULL_VIEW = { x: 0, y: 0, w: 100, h: 100 };
 
+/* Magnetic snapping, the way slide and 3D tools do it: the rect pulls to the
+   frame edges, the centre lines and the thirds when it comes close, and the
+   guide it caught is drawn so you can see why it stopped there. */
+const SNAP_PX = 7;
+const TARGETS = [0, 100 / 3, 50, 200 / 3, 100];
+
+function snapAxis(lead, size, threshold, opts) {
+  // try the leading edge, the trailing edge, then the centre
+  const candidates = [
+    { at: lead, place: (v) => v },
+    { at: lead + size, place: (v) => v - size },
+    { at: lead + size / 2, place: (v) => v - size / 2 },
+  ];
+  let best = null;
+  for (const c of candidates) {
+    if (opts && opts.only && !opts.only.includes(candidates.indexOf(c))) continue;
+    for (const target of TARGETS) {
+      const d = Math.abs(c.at - target);
+      if (d < threshold && (!best || d < best.d)) best = { d, target, value: c.place(target) };
+    }
+  }
+  return best;
+}
+
+/** Returns the snapped rect plus the guides it caught, in frame percent. */
+function snapRect(rect, frame, mode) {
+  const tx = (SNAP_PX / frame.width) * 100;
+  const ty = (SNAP_PX / frame.height) * 100;
+  const guides = [];
+  let { x, y, w, h } = rect;
+
+  // when resizing, only the edge being dragged should snap
+  const only =
+    mode && mode.startsWith("resize")
+      ? mode.includes("w")
+        ? [0]
+        : [1]
+      : null;
+
+  const sx = snapAxis(x, w, tx, only ? { only } : null);
+  if (sx) {
+    x = sx.value;
+    guides.push({ axis: "v", at: sx.target });
+  }
+  const sy = snapAxis(y, h, ty, null);
+  if (sy) {
+    y = sy.value;
+    guides.push({ axis: "h", at: sy.target });
+  }
+  return { rect: { x, y, w, h }, guides };
+}
+
 export function Preview({
   canvasRef,
   layers,
@@ -23,6 +75,7 @@ export function Preview({
   const [frame, setFrame] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [dropActive, setDropActive] = useState(false);
+  const [guides, setGuides] = useState([]);
   const dragRef = useRef(null);
 
   /* The canvas always shows the whole composition; crops are baked into the
@@ -142,23 +195,35 @@ export function Preview({
         onLayerRect(d.id, r);
       } else if (d.mode === "crop-move") {
         const s = d.start;
-        onDraftCrop({
-          ...draftCrop,
+        const raw = {
           x: clamp(s.x + dx, 0, 100 - s.w),
           y: clamp(s.y + dy, 0, 100 - s.h),
-        });
+          w: s.w,
+          h: s.h,
+        };
+        const snapped = e.altKey ? { rect: raw, guides: [] } : snapRect(raw, frame, "move");
+        setGuides(snapped.guides);
+        onDraftCrop({ ...draftCrop, ...snapped.rect });
       } else if (d.mode === "crop-resize") {
         // Shift keeps whatever ratio the box had when the drag began; the
         // picker locks it to a fixed one for the whole drag.
         const locked = parseAspect(aspect);
         const ratio = locked || (e.shiftKey ? d.startRatio : null);
-        onDraftCrop(resizeCrop(d.handle, d.start, dx, dy, ratio, frameSize.w, frameSize.h));
+        const raw = resizeCrop(d.handle, d.start, dx, dy, ratio, frameSize.w, frameSize.h);
+        // a locked ratio must win over snapping, or the box would distort
+        const snapped =
+          e.altKey || ratio
+            ? { rect: raw, guides: [] }
+            : snapRect(raw, frame, "resize-" + d.handle);
+        setGuides(snapped.guides);
+        onDraftCrop(snapped.rect);
       }
     };
 
     const onUp = () => {
       dragRef.current = null;
       setDragging(false);
+      setGuides([]);
     };
 
     document.addEventListener("pointermove", onMove);
@@ -256,6 +321,14 @@ export function Preview({
               height: spanPxY(c.h),
             }}
           />
+
+          {guides.map((g, i) => (
+            <div
+              key={i}
+              className={"snap-guide snap-guide-" + g.axis}
+              style={g.axis === "v" ? { left: (g.at / 100) * frame.width } : { top: (g.at / 100) * frame.height }}
+            />
+          ))}
 
           <div
             className="crop-rect"

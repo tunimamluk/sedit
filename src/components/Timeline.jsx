@@ -41,9 +41,21 @@ export function Timeline({
         return;
       }
       if (drag.kind === "trim-l" || drag.kind === "trim-r") {
-        // timeline seconds -> source seconds
-        const delta = ((e.clientX - drag.startX) / r.width) * duration * drag.speed;
-        onTrimTrack(drag.id, drag.kind === "trim-l" ? { deltaStart: delta } : { deltaEnd: delta });
+        const b = drag.base;
+        const MIN = 0.05;
+        // pixels -> timeline seconds -> source seconds
+        const delta = (e.clientX - drag.startX) * drag.secPerPx * drag.speed;
+
+        if (drag.kind === "trim-l") {
+          const clipStart = clamp(b.clipStart + delta, 0, b.clipEnd - MIN);
+          // keep the audio you kept sitting where it already was
+          const offset = Math.max(0, b.offset + (clipStart - b.clipStart) / drag.speed);
+          onTrimTrack(drag.id, { clipStart, offset });
+        } else {
+          onTrimTrack(drag.id, {
+            clipEnd: clamp(b.clipEnd + delta, b.clipStart + MIN, b.duration),
+          });
+        }
         return;
       }
 
@@ -63,15 +75,39 @@ export function Timeline({
   }, [drag, timeAt, onTrim, onScrub, onMoveTrack, onTrimTrack, trimIn, trimOut, duration]);
 
   const pct = (t) => (t / duration) * 100;
-  const inner = { width: zoom * 100 + "%", minWidth: "100%" };
+  // No minWidth: below 100% the stack is meant to be narrower than the
+  // viewport, which is what zooming out past "fit" means.
+  const inner = { width: zoom * 100 + "%" };
+
+  /* Snapshot everything the drag needs at pointerdown. Reading live values
+     during the drag compounds: the pointer delta is measured from the start,
+     so applying it to an already-updated value re-adds the whole delta every
+     frame. Seconds-per-pixel is frozen too, because the project duration --
+     and therefore the scale under the cursor -- changes as you trim. */
+  const beginTrim = (kind, t, e) => {
+    const r = barRef.current.getBoundingClientRect();
+    return {
+      kind,
+      id: t.id,
+      startX: e.clientX,
+      secPerPx: duration / r.width,
+      speed: t.speed || 1,
+      base: {
+        clipStart: t.clipStart || 0,
+        clipEnd: t.clipEnd != null ? t.clipEnd : t.duration || 0,
+        offset: t.offset,
+        duration: t.duration || 0,
+      },
+    };
+  };
 
   return (
     <div className={"timeline-wrap" + (disabled ? " is-disabled" : "")}>
       <div className="timeline-toolbar" style={disabled ? { visibility: "hidden" } : undefined}>
         <button
           className="zoom-btn"
-          onClick={() => onZoom(zoom / 1.5)}
-          disabled={zoom <= 1.001}
+          onClick={() => onZoom((z) => z / 1.5)}
+          disabled={zoom <= 0.2501}
           title="Zoom out"
         >
           <Icon name="zoomOut" size={14} />
@@ -79,14 +115,14 @@ export function Timeline({
         <span className="zoom-label">{Math.round(zoom * 100)}%</span>
         <button
           className="zoom-btn"
-          onClick={() => onZoom(zoom * 1.5)}
+          onClick={() => onZoom((z) => z * 1.5)}
           disabled={zoom >= 39.9}
           title="Zoom in"
         >
           <Icon name="zoomIn" size={14} />
         </button>
-        {zoom > 1.001 && (
-          <button className="zoom-btn zoom-fit" onClick={() => onZoom(1)} title="Fit to width">
+        {Math.abs(zoom - 1) > 0.001 && (
+          <button className="zoom-btn zoom-fit" onClick={() => onZoom(() => 1)} title="Fit to width">
             Fit
           </button>
         )}
@@ -156,7 +192,7 @@ export function Timeline({
                       onPointerDown={(e) => {
                         e.stopPropagation();
                         onSelectTrack(t.id);
-                        setDrag({ kind: "trim-l", id: t.id, startX: e.clientX, speed: t.speed || 1 });
+                        setDrag(beginTrim("trim-l", t, e));
                       }}
                     />
                     <div
@@ -165,7 +201,7 @@ export function Timeline({
                       onPointerDown={(e) => {
                         e.stopPropagation();
                         onSelectTrack(t.id);
-                        setDrag({ kind: "trim-r", id: t.id, startX: e.clientX, speed: t.speed || 1 });
+                        setDrag(beginTrim("trim-r", t, e));
                       }}
                     />
                   </div>
