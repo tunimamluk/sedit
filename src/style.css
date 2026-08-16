@@ -16,6 +16,8 @@
   --accent-contrast: #1a1006;
   --accent-dim: rgba(255,122,26,0.22);
   --accent-soft: rgba(255,122,26,0.10);
+  /* clip texture: quiet enough to read as a surface, not as content */
+  --clip-line: rgba(255,122,26,0.20);
   --danger: #ff5f5f;
   --shadow: rgba(0,0,0,0.45);
   --radius: 10px;
@@ -45,6 +47,7 @@
   --accent-contrast: #ffffff;
   --accent-dim: rgba(226,98,10,0.20);
   --accent-soft: rgba(226,98,10,0.08);
+  --clip-line: rgba(226,98,10,0.22);
   --danger: #d33a3a;
   --shadow: rgba(0,0,0,0.14);
   color-scheme: light;
@@ -403,55 +406,6 @@ kbd{
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-/* ---------- Audio lane (timeline) ---------- */
-
-.audio-lane{
-  position: relative;
-  margin-top: 6px;
-  padding: 5px 0;
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-}
-
-.audio-lane-row{
-  position: relative;
-  height: 26px;
-  margin: 3px 0;
-}
-
-.audio-clip{
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  min-width: 8px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  border-radius: 5px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  color: var(--text);
-  cursor: grab;
-  overflow: hidden;
-  /* waveform-ish texture so a clip reads as audio at a glance */
-  background-image: repeating-linear-gradient(
-    90deg, transparent 0 3px, var(--accent-dim) 3px 4px);
-}
-
-.audio-clip:active{ cursor: grabbing; }
-.audio-clip.selected{ background-color: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
-.audio-clip.muted{ opacity: 0.45; }
-
-.audio-clip-name{
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
 }
 
 /* ---------- Preview / stage ---------- */
@@ -828,15 +782,14 @@ kbd{
 .timeline-scroll{
   overflow-x: auto;
   overflow-y: hidden;
-  padding-top: 4px;
-  /* the bed the project sits on, so zooming below 100% reads as
-     "the project is shorter than the view" rather than a broken layout */
-  background:
-    repeating-linear-gradient(90deg, transparent 0 7px, var(--border-soft) 7px 8px);
   border-radius: var(--radius-sm);
 }
 
-.timeline-stack{ position: relative; }
+.timeline-stack{
+  position: relative;
+  padding-top: 8px;
+  cursor: pointer;
+}
 
 .timeline-wrap.is-disabled{ opacity: 0.45; pointer-events: none; }
 
@@ -868,51 +821,120 @@ kbd{
   padding: 0 16px 16px;
 }
 
-.timeline{
+/* ---------- Ruler ---------- */
+
+.ruler{
   position: relative;
-  height: 40px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
+  height: 17px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 7px;
 }
 
-.trim-range{
+.tick{
+  position: absolute;
+  top: 9px;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+}
+
+.tick:first-child{ border-left-color: transparent; }
+
+.tick-label{
+  position: absolute;
+  left: 3px;
+  top: -9px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---------- Lanes ----------
+
+   A lane has no fill of its own. One that stretched the full width of the
+   ruler read as "the media runs this long", so trimming a clip left the
+   original length sitting there behind it. The clips are the only thing
+   drawn, and a clip ends exactly where its media ends. */
+
+.lane{ position: relative; }
+
+/* a hairline between video and audio, so the two lanes read as separate
+   tracks rather than one stack of clips */
+.lane + .lane{
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.lane-row{ position: relative; height: 28px; }
+.lane-row + .lane-row{ margin-top: 4px; }
+
+/* A clip is a plain surface with a label on it. Textures (waveform hatching,
+   filmstrip sprockets) turned the lane into visual noise at any real zoom;
+   the type icon says what it is far more quietly. */
+.clip{
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--accent-soft);
+  min-width: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  border-radius: 5px;
+  background-color: var(--accent-soft);
+  border: 1px solid var(--clip-line);
+  color: var(--text-dim);
+  cursor: grab;
+  overflow: hidden;
 }
 
-.trim-handle{
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  width: 6px;
-  background: var(--accent);
-  border-radius: 3px;
-  cursor: ew-resize;
-  z-index: 3;
+.clip:hover{ border-color: var(--accent); }
+.clip:active{ cursor: grabbing; }
+
+.clip.selected{
+  background-color: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
 }
 
-.trim-handle::after{
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2px;
-  height: 12px;
-  border-radius: 1px;
-  background: var(--accent-contrast);
-  opacity: 0.55;
+.clip.muted{ opacity: 0.45; }
+
+.clip-lead{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  pointer-events: none;
 }
 
-/* One continuous line across every lane, not one segment per lane. */
+.clip-lead .icon{ flex: 0 0 auto; color: var(--accent); }
+
+.clip-name{
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-len{
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* One continuous line across the ruler and every lane. */
 .playhead{
   position: absolute;
-  top: -4px;
-  bottom: -2px;
+  top: 3px;
+  bottom: 0;
   width: 2px;
   background: var(--text);
   pointer-events: none;

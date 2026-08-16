@@ -75,6 +75,18 @@ export function layerSpan(l) {
 
 const NICE_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600];
 
+/** Spacing for ruler ticks: the smallest round interval that keeps the number
+    of ticks near `target`. */
+const TICK_STEPS = [
+  0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
+];
+
+export function tickStep(seconds, target) {
+  const raw = seconds / Math.max(1, target);
+  for (const s of TICK_STEPS) if (s >= raw) return s;
+  return TICK_STEPS[TICK_STEPS.length - 1];
+}
+
 /** Width of the ruler in seconds. Rounded up to a round number, always with
     one step left over, so there is somewhere to drag a clip past the end
     without the whole timeline rescaling underneath the cursor. */

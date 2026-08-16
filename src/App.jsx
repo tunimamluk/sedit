@@ -10,7 +10,9 @@ import { useTheme } from "./hooks/useTheme.js";
 import { usePlayback } from "./hooks/usePlayback.js";
 import { canComposite, drawComposition } from "./lib/render.js";
 import { applyAspectToCrop, parseAspect } from "./lib/geometry.js";
-import { clamp, formatTime, layerLen, projectDuration, timelineSpan } from "./lib/time.js";
+import {
+  clamp, clipEnd, clipStart, formatTime, layerLen, projectDuration, timelineSpan,
+} from "./lib/time.js";
 import { findFormat, supportedFormats } from "./lib/formats.js";
 import { applyLevel, createMediaStore, disposeMedia, exportGain, resumeAudio } from "./lib/media.js";
 
@@ -322,19 +324,104 @@ export default function App() {
     setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
 
-  // Timeline hands back absolute clip values, so this is just a patch.
-  const trimTrack = useCallback(
-    (id, patch) => {
-      setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    },
-    []
-  );
-
   const removeTrack = useCallback((id) => {
     disposeMedia(mediaRef.current, id);
     setTracks((ts) => ts.filter((t) => t.id !== id));
     setSelectedTrackId((s) => (s === id ? null : s));
   }, []);
+
+  /* ---- the timeline ----
+
+     Video and audio are separate lanes and nothing crosses between them: each
+     lane shows one block per clip, positioned and trimmed on its own. The
+     ruler is scaled by `span`, which trimming cannot change, so editing one
+     lane never moves anything in the other. */
+
+  const IMAGEY = (t) => t === "image" || t === "text";
+
+  // A clip block, in the shape the timeline draws. Images and text have no
+  // source to trim, so they present as a window on an arbitrarily long one:
+  // dragging their ends just makes them show for longer or shorter.
+  const STILL_MAX = 3600;
+  const videoClips = useMemo(
+    () =>
+      layers
+        .slice()
+        .reverse() // topmost layer on top, matching the Layers panel
+        .map((l) => ({
+          id: l.id,
+          kind: l.type,
+          name: l.name,
+          offset: l.offset,
+          length: layerLen(l),
+          clipStart: IMAGEY(l.type) ? 0 : clipStart(l),
+          clipEnd: IMAGEY(l.type) ? l.len : clipEnd(l),
+          srcDuration: IMAGEY(l.type) ? STILL_MAX : l.duration || 0,
+        })),
+    [layers]
+  );
+
+  const audioClips = useMemo(
+    () =>
+      tracks.map((t) => ({
+        id: t.id,
+        kind: "audio",
+        name: t.name,
+        offset: t.offset,
+        length: layerLen(t),
+        clipStart: clipStart(t),
+        clipEnd: clipEnd(t),
+        srcDuration: t.duration || 0,
+        muted: t.muted,
+      })),
+    [tracks]
+  );
+
+  const isTrack = useCallback((id) => tracks.some((t) => t.id === id), [tracks]);
+
+  const selectClip = useCallback(
+    (id) => {
+      if (tracks.some((t) => t.id === id)) {
+        setSelectedTrackId(id);
+        setSelectedId(null);
+      } else {
+        setSelectedId(id);
+        setSelectedTrackId(null);
+      }
+    },
+    [tracks]
+  );
+
+  const moveClip = useCallback(
+    (id, offset) => {
+      if (isTrack(id)) setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, offset } : t)));
+      else setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, offset } : l)));
+    },
+    [isTrack]
+  );
+
+  // The timeline hands back absolute values from its own drag snapshot, so
+  // these are plain assignments -- never deltas applied to the current value.
+  const trimClip = useCallback(
+    (id, { clipStart: from, clipEnd: to, offset }) => {
+      if (isTrack(id)) {
+        setTracks((ts) =>
+          ts.map((t) => (t.id === id ? { ...t, clipStart: from, clipEnd: to, offset } : t))
+        );
+        return;
+      }
+      setLayers((ls) =>
+        ls.map((l) =>
+          l.id !== id
+            ? l
+            : IMAGEY(l.type)
+              ? { ...l, offset, len: to - from }
+              : { ...l, offset, clipStart: from, clipEnd: to }
+        )
+      );
+    },
+    [isTrack]
+  );
 
   const moveLayer = useCallback((index, dir) => {
     setLayers((ls) => {
@@ -654,28 +741,17 @@ export default function App() {
           />
 
           <Timeline
-            duration={duration}
             span={span}
-            trimIn={trim.trimIn}
-            trimOut={trim.trimOut}
-            onTrim={(patch) =>
-              setTrim((t) => ({
-                ...t,
-                ...patch,
-                trimOutIsMax:
-                  patch.trimOut != null ? patch.trimOut >= duration - 0.05 : t.trimOutIsMax,
-              }))
-            }
             time={time}
-            onScrub={seek}
-            tracks={tracks.map((t) => ({ ...t, length: layerLen(t) }))}
-            selectedTrackId={selectedTrackId}
-            onSelectTrack={(id) => {
-              setSelectedTrackId(id);
-              setSelectedId(null);
-            }}
-            onMoveTrack={(id, offset) => patchTrack(id, { offset })}
-            onTrimTrack={trimTrack}
+            // The ruler runs past the end of the project (see timelineSpan),
+            // but the playhead should not -- "4.50 / 4.13" is nonsense.
+            onScrub={(t) => seek(clamp(t, 0, duration))}
+            videoClips={videoClips}
+            audioClips={audioClips}
+            selectedId={selectedId || selectedTrackId}
+            onSelect={selectClip}
+            onMoveClip={moveClip}
+            onTrimClip={trimClip}
             zoom={zoom}
             onZoom={(z) => setZoom(clamp(z, ZOOM_MIN, ZOOM_MAX))}
             disabled={!hasMedia}
