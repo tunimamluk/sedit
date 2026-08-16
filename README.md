@@ -67,6 +67,17 @@ state once per frame for the components that display it.
 - **Theme** — the sun/moon button in the top bar toggles light/dark. Your choice is remembered; it defaults to your OS setting.
 - **Export** — the output name defaults to `edited <your clip's name>` (change it and it stops auto-deriving). Pick a format in the top bar (the menu only lists what your browser can actually record — Chrome offers MP4/H.264 and WebM), then Export renders the trimmed range with crop, speed, and layers applied.
 
+## Type
+
+Two families, bundled locally via `@fontsource` (no network fetch):
+
+- **Unbounded** — the wordmark and every section heading. Geometric and wide.
+- **Outfit** — all UI text. The same circular geometric skeleton, but drawn
+  for reading at small sizes.
+
+They are exposed as `--font-display` and `--font-ui`, so the whole app shifts
+by editing two tokens.
+
 ## Time display
 
 Times read as `12.34` under a minute, `1:05.40` past one, `1:01:05.40` past an hour — hundredths always, larger units only when they are non-zero.
