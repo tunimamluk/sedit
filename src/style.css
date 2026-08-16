@@ -21,6 +21,12 @@
      selected thing was the ugly part. */
   --surface: #242424;
   --surface-hi: #2f2f2f;
+  /* One desaturated hue per clip kind, worn as a stripe rather than a fill,
+     so a text clip is identifiable at a glance without shouting. */
+  --kind-video: #6aa9f2;
+  --kind-audio: #4fbf9a;
+  --kind-image: #b98ce8;
+  --kind-text: #e6b44f;
   --danger: #ff5f5f;
   --shadow: rgba(0,0,0,0.45);
   --radius: 10px;
@@ -52,6 +58,10 @@
   --accent-soft: rgba(226,98,10,0.08);
   --surface: #fbfbfc;
   --surface-hi: #ffffff;
+  --kind-video: #2f6fc4;
+  --kind-audio: #1d8f6b;
+  --kind-image: #7b4fc0;
+  --kind-text: #a9741a;
   --danger: #d33a3a;
   --shadow: rgba(0,0,0,0.14);
   color-scheme: light;
@@ -322,7 +332,8 @@ kbd{
   background: var(--surface-hi);
 }
 
-.layer-item.selected .layer-thumb{ color: var(--accent); }
+/* the thumb carries the clip's kind colour, matching its block on the timeline */
+.layer-thumb .icon{ color: var(--kind, var(--text-dim)); }
 
 .layer-thumb{
   width: 30px;
@@ -891,7 +902,7 @@ kbd{
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 9px;
+  padding: 0 9px 0 12px;
   border-radius: 5px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -919,9 +930,29 @@ kbd{
   pointer-events: none;
 }
 
-/* the one bit of accent on a clip, and only once it is selected */
-.clip-lead .icon{ flex: 0 0 auto; color: var(--text-faint); }
-.clip.selected .clip-lead .icon{ color: var(--accent); }
+/* Kind stripe. The clip surface stays neutral; the stripe and the icon carry
+   the colour, which is enough to pick a text clip out of a row of video. */
+.clip::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--kind);
+}
+
+.clip-video, .kind-video{ --kind: var(--kind-video); }
+.clip-audio, .kind-audio{ --kind: var(--kind-audio); }
+.clip-image, .kind-image{ --kind: var(--kind-image); }
+.clip-text,  .kind-text { --kind: var(--kind-text); }
+
+.clip-lead .icon{ flex: 0 0 auto; color: var(--kind); }
+
+/* a text clip is labelled with its own words, so it is set in quotes */
+.clip-text .clip-name{ font-weight: 500; font-style: italic; }
+.clip-text .clip-name::before{ content: "\201C"; }
+.clip-text .clip-name::after{ content: "\201D"; }
 
 .clip-name{
   font-size: 11px;
@@ -1053,14 +1084,132 @@ input[type="range"].prop-range::-webkit-slider-thumb{
   line-height: 1.45;
 }
 
-input[type="color"].prop-color{
-  width: 100%;
-  height: 32px;
+/* ---------- Text controls ---------- */
+
+/* Size field: steppers either side of a box you can type any number into,
+   with a datalist of the usual sizes hanging off it. */
+.numfield{
+  display: flex;
+  align-items: stretch;
+  width: fit-content;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
-  padding: 2px;
+  overflow: hidden;
+}
+
+.numfield:focus-within{ border-color: var(--accent); }
+
+.numfield-btn{
+  width: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
   cursor: pointer;
+}
+
+.numfield-btn:hover:not(:disabled){ background: var(--surface-hi); color: var(--accent); }
+.numfield-btn:disabled{ opacity: 0.3; cursor: default; }
+
+.numfield-input{
+  width: 62px;
+  height: 32px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+/* Segmented toggles for bold / italic / underline and alignment. */
+.seg-row{ display: flex; gap: 8px; flex-wrap: wrap; }
+
+.seg{
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.seg-btn{
+  width: 34px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.seg-btn + .seg-btn{ border-left: 1px solid var(--border); }
+.seg-btn:hover{ background: var(--surface-hi); color: var(--text); }
+
+.seg-btn.active{
+  background: var(--surface-hi);
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.seg-b{ font-weight: 800; }
+.seg-i{ font-family: Georgia, serif; font-style: italic; font-size: 14px; }
+.seg-u{ text-decoration: underline; text-underline-offset: 2px; }
+
+/* Colour: a big square you can open a picker from, plus the colours a
+   caption actually wants, one click away. */
+.colour-row{ display: flex; align-items: center; gap: 12px; }
+
+.swatch{
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.swatch.active{ box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 3px var(--accent); }
+
+.swatch-set{
+  display: grid;
+  grid-template-columns: repeat(4, 24px);
+  gap: 6px;
+}
+
+.swatch-custom{
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.swatch-custom input[type="color"]{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.swatch-fill{
+  position: absolute;
+  inset: 3px;
+  border-radius: 3px;
+  /* chequerboard behind, so a light colour still reads as a colour */
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18);
 }
 
 .prop-textarea{

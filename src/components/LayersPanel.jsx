@@ -53,7 +53,7 @@ export const LayersPanel = memo(function LayersPanel({
                 className={"layer-item" + (l.id === selectedId ? " selected" : "")}
                 onClick={() => onSelect(l.id)}
               >
-                <div className="layer-thumb">
+                <div className={"layer-thumb kind-" + l.type}>
                   <Icon name={l.type} size={16} />
                 </div>
 

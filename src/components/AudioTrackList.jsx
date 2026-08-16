@@ -25,7 +25,7 @@ export const AudioTrackList = memo(function AudioTrackList({
               className={"layer-item" + (t.id === selectedId ? " selected" : "")}
               onClick={() => onSelect(t.id)}
             >
-              <div className="layer-thumb">
+              <div className="layer-thumb kind-audio">
                 <Icon name="audio" size={16} />
               </div>
               <div className="layer-meta">

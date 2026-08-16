@@ -14,6 +14,7 @@ import {
   clamp, clipEnd, clipStart, formatTime, layerLen, projectDuration, timelineSpan,
 } from "./lib/time.js";
 import { findFormat, supportedFormats } from "./lib/formats.js";
+import { textDefaults, textLabel } from "./lib/text.js";
 import { applyLevel, createMediaStore, disposeMedia, exportGain, resumeAudio } from "./lib/media.js";
 
 const DEFAULT_SIZE = { w: 1280, h: 720 };
@@ -259,6 +260,7 @@ export default function App() {
 
         setLayers((ls) => [...ls, layer]);
         setSelectedId(id);
+        setSelectedTrackId(null);
       }
     },
     [flash, sizeLocked, paint, playingRef, playheadRef]
@@ -280,12 +282,11 @@ export default function App() {
         h: 16,
         opacity: 1,
         visible: true,
-        text: "Your text here",
-        color: "#ffffff",
-        fontSize: 7,
+        ...textDefaults(),
       },
     ]);
     setSelectedId(id);
+    setSelectedTrackId(null); // otherwise the panel keeps editing the audio
   }, []);
 
   const patchLayer = useCallback((id, patch) => {
@@ -351,7 +352,9 @@ export default function App() {
         .map((l) => ({
           id: l.id,
           kind: l.type,
-          name: l.name,
+          // A text clip is labelled with what it actually says, so you can
+          // tell one title from another without selecting it.
+          name: l.type === "text" ? textLabel(l) : l.name,
           offset: l.offset,
           length: layerLen(l),
           clipStart: IMAGEY(l.type) ? 0 : clipStart(l),

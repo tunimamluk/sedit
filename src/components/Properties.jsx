@@ -1,6 +1,8 @@
-import { memo } from "react";
-import { clipEnd, clipStart, formatTime, layerLen, sourceLen } from "../lib/time.js";
+import { memo, useRef, useState } from "react";
+import { clamp, clipEnd, clipStart, formatTime, sourceLen } from "../lib/time.js";
+import { FONTS, SIZE_PRESETS, TEXT_SWATCHES } from "../lib/text.js";
 import { CropControls } from "./CropControls.jsx";
+import { Icon } from "./Icon.jsx";
 
 function Group({ label, children }) {
   return (
@@ -27,6 +29,214 @@ function Range({ label, value, min, max, step, onChange, display, disabled, note
       />
       <div className="prop-value">{disabled && note ? note : display != null ? display : Math.round(value)}</div>
     </div>
+  );
+}
+
+/* A number you can actually type into. Clamping on every keystroke makes a
+   field unusable -- typing "48" into a min-of-10 box turns the "4" into "10"
+   and you end up with "108". The raw text is kept while the field has focus
+   and the clamp happens on Enter or blur. `presets` turns it into a combo box
+   the way a word processor's size field works: pick one, or type your own. */
+function NumField({ value, min, max, step = 1, onChange, presets, id, title }) {
+  const [draft, setDraft] = useState(null);
+  const cancelling = useRef(false);
+
+  const commit = (raw) => {
+    const v = parseFloat(raw);
+    if (!Number.isNaN(v)) onChange(clamp(v, min, max));
+    setDraft(null);
+  };
+  const nudge = (dir) => onChange(clamp(value + dir * step, min, max));
+
+  return (
+    <div className="numfield" title={title}>
+      <button className="numfield-btn" onClick={() => nudge(-1)} disabled={value <= min}>
+        &minus;
+      </button>
+      <input
+        className="numfield-input"
+        type="text"
+        inputMode="decimal"
+        list={presets ? id : undefined}
+        value={draft != null ? draft : String(Math.round(value))}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={(e) => {
+          if (cancelling.current) {
+            cancelling.current = false;
+            setDraft(null);
+            return;
+          }
+          commit(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit(e.currentTarget.value);
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            cancelling.current = true;
+            setDraft(null);
+            e.currentTarget.blur();
+          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            setDraft(null);
+            nudge(e.key === "ArrowUp" ? 1 : -1);
+          }
+        }}
+      />
+      {presets && (
+        <datalist id={id}>
+          {presets.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
+      )}
+      <button className="numfield-btn" onClick={() => nudge(1)} disabled={value >= max}>
+        +
+      </button>
+    </div>
+  );
+}
+
+function Seg({ active, onClick, title, children }) {
+  return (
+    <button
+      className={"seg-btn" + (active ? " active" : "")}
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* The whole text editor, kept together so the layer panel below stays
+   readable. Sizes are stored as a percentage of the frame height and shown
+   in pixels of the current frame -- the number that means something while
+   you are looking at the preview. */
+function TextControls({ layer, canvasSize, onPatch }) {
+  const px = Math.round((layer.fontSize / 100) * canvasSize.h);
+  const setPx = (v) => onPatch({ fontSize: (v / canvasSize.h) * 100 });
+
+  return (
+    <>
+      <Group label="Text">
+        <textarea
+          className="prop-textarea"
+          value={layer.text}
+          rows={3}
+          onChange={(e) => onPatch({ text: e.target.value })}
+        />
+      </Group>
+
+      <Group label="Font">
+        <select
+          className="prop-input select"
+          value={layer.fontFamily || FONTS[0].stack}
+          onChange={(e) => onPatch({ fontFamily: e.target.value })}
+        >
+          {FONTS.map((f) => (
+            <option key={f.label} value={f.stack} style={{ fontFamily: f.stack }}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+      </Group>
+
+      <div className="prop-group">
+        <div className="prop-label">Font size (pixels)</div>
+        <NumField
+          id="text-size-presets"
+          value={px}
+          min={4}
+          max={Math.max(8, canvasSize.h)}
+          step={1}
+          presets={SIZE_PRESETS}
+          onChange={setPx}
+          title="Type any size, or pick one from the list"
+        />
+      </div>
+
+      <div className="prop-group">
+        <div className="prop-label">Style</div>
+        <div className="seg-row">
+          <div className="seg">
+            <Seg active={!!layer.bold} onClick={() => onPatch({ bold: !layer.bold })} title="Bold">
+              <span className="seg-b">B</span>
+            </Seg>
+            <Seg
+              active={!!layer.italic}
+              onClick={() => onPatch({ italic: !layer.italic })}
+              title="Italic"
+            >
+              <span className="seg-i">I</span>
+            </Seg>
+            <Seg
+              active={!!layer.underline}
+              onClick={() => onPatch({ underline: !layer.underline })}
+              title="Underline"
+            >
+              <span className="seg-u">U</span>
+            </Seg>
+          </div>
+
+          <div className="seg">
+            {[
+              ["left", "alignLeft", "Align left"],
+              ["center", "alignCenter", "Align centre"],
+              ["right", "alignRight", "Align right"],
+            ].map(([value, icon, title]) => (
+              <Seg
+                key={value}
+                active={(layer.align || "left") === value}
+                onClick={() => onPatch({ align: value })}
+                title={title}
+              >
+                <Icon name={icon} size={14} />
+              </Seg>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="prop-group">
+        <div className="prop-label">Colour</div>
+        <div className="colour-row">
+          <label className="swatch swatch-custom" title="Pick any colour">
+            <span className="swatch-fill" style={{ background: layer.color }} />
+            <input
+              type="color"
+              value={layer.color}
+              onChange={(e) => onPatch({ color: e.target.value })}
+            />
+          </label>
+          <div className="swatch-set">
+            {TEXT_SWATCHES.map((c) => (
+              <button
+                key={c}
+                className={"swatch" + (layer.color.toLowerCase() === c ? " active" : "")}
+                style={{ background: c }}
+                title={c}
+                onClick={() => onPatch({ color: c })}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="prop-toggle-row">
+        <div className="prop-label">Drop shadow</div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={layer.shadow !== false}
+            onChange={(e) => onPatch({ shadow: e.target.checked })}
+          />
+          <div className="switch-track" />
+        </label>
+      </div>
+    </>
   );
 }
 
@@ -164,31 +374,7 @@ export const Properties = memo(function Properties({
             </Group>
 
             {layer.type === "text" && (
-              <>
-                <Group label="Text">
-                  <textarea
-                    className="prop-textarea"
-                    value={layer.text}
-                    onChange={(e) => onPatch({ text: e.target.value })}
-                  />
-                </Group>
-                <Group label="Color">
-                  <input
-                    className="prop-color"
-                    type="color"
-                    value={layer.color}
-                    onChange={(e) => onPatch({ color: e.target.value })}
-                  />
-                </Group>
-                <Range
-                  label="Font size"
-                  value={layer.fontSize}
-                  min={1}
-                  max={25}
-                  step={0.5}
-                  onChange={(v) => onPatch({ fontSize: v })}
-                />
-              </>
+              <TextControls layer={layer} canvasSize={canvasSize} onPatch={onPatch} />
             )}
 
             {layer.type !== "audio" && (

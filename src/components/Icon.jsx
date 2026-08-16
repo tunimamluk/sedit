@@ -93,6 +93,9 @@ const PATHS = {
       <path d="M15.6 15.6 21 21M7.8 10.6h5.6" />
     </>
   ),
+  alignLeft: <path d="M4 6.4h16M4 11h10.5M4 15.6h13.5M4 20.2h8" />,
+  alignCenter: <path d="M4 6.4h16M6.8 11h10.5M5.2 15.6h13.5M8 20.2h8" />,
+  alignRight: <path d="M4 6.4h16M9.5 11h10.5M6.5 15.6h13.5M12 20.2h8" />,
   undo: (
     <>
       <path d="M3.6 8.4h10.2a5.8 5.8 0 0 1 0 11.6H7.4" />

@@ -1,4 +1,5 @@
 import { isLayerActive } from "./time.js";
+import { fontString } from "./text.js";
 
 /** True when every video that should be on screen at `t` can actually be
     drawn. If it isn't, repainting would clear the canvas to black and then
@@ -42,21 +43,53 @@ function drawSource(ctx, el, l, px, py, pw, ph) {
   }
 }
 
-function wrapText(c, text, x, y, maxWidth, lineHeight) {
-  const words = String(text).split(/\s+/);
-  let line = "";
-  let cy = y;
-  for (const word of words) {
-    const test = line ? line + " " + word : word;
-    if (c.measureText(test).width > maxWidth && line) {
-      c.fillText(line, x, cy);
-      line = word;
-      cy += lineHeight;
-    } else {
-      line = test;
+/** Break `text` to `maxWidth`, honouring the line breaks the person typed --
+    a plain split on whitespace silently throws their paragraphs away. */
+function layoutText(c, text, maxWidth) {
+  const lines = [];
+  for (const para of String(text).split("\n")) {
+    if (!para.trim()) {
+      lines.push("");
+      continue;
     }
+    let line = "";
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const test = line ? line + " " + word : word;
+      if (c.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
   }
-  if (line) c.fillText(line, x, cy);
+  return lines;
+}
+
+/* Canvas has no underline, so it is drawn: a rule under the ink, positioned
+   and sized from the metrics rather than guessed. */
+function drawTextBlock(c, l, px, py, pw, fs) {
+  const align = l.align || "left";
+  const anchor = align === "center" ? px + pw / 2 : align === "right" ? px + pw : px;
+  const lineHeight = fs * 1.25;
+
+  c.textAlign = align;
+  c.textBaseline = "top";
+
+  const lines = layoutText(c, l.text || "", pw);
+  lines.forEach((line, i) => {
+    const y = py + i * lineHeight;
+    c.fillText(line, anchor, y);
+    if (!l.underline || !line) return;
+    const w = c.measureText(line).width;
+    const x0 = align === "center" ? anchor - w / 2 : align === "right" ? anchor - w : anchor;
+    // shadows belong to the glyphs, not to the rule
+    const shadow = c.shadowBlur;
+    c.shadowBlur = 0;
+    c.fillRect(x0, y + fs * 1.06, w, Math.max(1, fs * 0.06));
+    c.shadowBlur = shadow;
+  });
 }
 
 /** Paint the whole composition at composition time `t`.
@@ -110,11 +143,12 @@ export function drawComposition(canvas, layers, media, t, frame) {
     } else if (l.type === "text") {
       const fs = (l.fontSize / 100) * fh;
       ctx.fillStyle = l.color || "#ffffff";
-      ctx.font = "700 " + fs + "px -apple-system, Helvetica, sans-serif";
-      ctx.textBaseline = "top";
-      ctx.shadowColor = "rgba(0,0,0,0.6)";
-      ctx.shadowBlur = fs * 0.15;
-      wrapText(ctx, l.text || "", px, py, pw, fs * 1.25);
+      ctx.font = fontString(l, fs);
+      if (l.shadow !== false) {
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = fs * 0.15;
+      }
+      drawTextBlock(ctx, l, px, py, pw, fs);
     }
 
     ctx.restore();
