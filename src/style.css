@@ -16,8 +16,11 @@
   --accent-contrast: #1a1006;
   --accent-dim: rgba(255,122,26,0.22);
   --accent-soft: rgba(255,122,26,0.10);
-  /* clip texture: quiet enough to read as a surface, not as content */
-  --clip-line: rgba(255,122,26,0.20);
+  /* Neutral surfaces for clips and selected rows. Selection is an accent
+     OUTLINE, never an accent fill -- a translucent orange wash over every
+     selected thing was the ugly part. */
+  --surface: #242424;
+  --surface-hi: #2f2f2f;
   --danger: #ff5f5f;
   --shadow: rgba(0,0,0,0.45);
   --radius: 10px;
@@ -47,7 +50,8 @@
   --accent-contrast: #ffffff;
   --accent-dim: rgba(226,98,10,0.20);
   --accent-soft: rgba(226,98,10,0.08);
-  --clip-line: rgba(226,98,10,0.22);
+  --surface: #fbfbfc;
+  --surface-hi: #ffffff;
   --danger: #d33a3a;
   --shadow: rgba(0,0,0,0.14);
   color-scheme: light;
@@ -312,10 +316,13 @@ kbd{
 
 .layer-item:hover{ border-color: var(--border); }
 
+/* Selection reads from the outline and the icon, not from a colour wash. */
 .layer-item.selected{
   border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--surface-hi);
 }
+
+.layer-item.selected .layer-thumb{ color: var(--accent); }
 
 .layer-thumb{
   width: 30px;
@@ -805,7 +812,7 @@ kbd{
 .clip-edge-l{ left: 0; }
 .clip-edge-r{ right: 0; }
 
-.clip-edge:hover{ background: var(--accent); opacity: 0.55; }
+.clip-edge:hover{ background: var(--accent); opacity: 0.4; }
 
 .layers-panel.dropping{
   outline: 2px dashed var(--accent);
@@ -886,18 +893,18 @@ kbd{
   gap: 8px;
   padding: 0 9px;
   border-radius: 5px;
-  background-color: var(--accent-soft);
-  border: 1px solid var(--clip-line);
+  background: var(--surface);
+  border: 1px solid var(--border);
   color: var(--text-dim);
   cursor: grab;
   overflow: hidden;
 }
 
-.clip:hover{ border-color: var(--accent); }
+.clip:hover{ background: var(--surface-hi); }
 .clip:active{ cursor: grabbing; }
 
 .clip.selected{
-  background-color: var(--accent-dim);
+  background: var(--surface-hi);
   border-color: var(--accent);
   color: var(--text);
 }
@@ -912,7 +919,9 @@ kbd{
   pointer-events: none;
 }
 
-.clip-lead .icon{ flex: 0 0 auto; color: var(--accent); }
+/* the one bit of accent on a clip, and only once it is selected */
+.clip-lead .icon{ flex: 0 0 auto; color: var(--text-faint); }
+.clip.selected .clip-lead .icon{ color: var(--accent); }
 
 .clip-name{
   font-size: 11px;
