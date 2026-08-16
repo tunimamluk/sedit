@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { formatTime, layerLen, layerSpeed } from "../lib/time.js";
+import { CropControls } from "./CropControls.jsx";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
 
@@ -12,9 +13,9 @@ function Group({ label, children }) {
   );
 }
 
-function Range({ label, value, min, max, step, onChange, display }) {
+function Range({ label, value, min, max, step, onChange, display, disabled, note }) {
   return (
-    <div className="prop-group">
+    <div className={"prop-group" + (disabled ? " prop-disabled" : "")}>
       <div className="prop-label">{label}</div>
       <input
         className="prop-range"
@@ -23,9 +24,10 @@ function Range({ label, value, min, max, step, onChange, display }) {
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(parseFloat(e.target.value))}
       />
-      <div className="prop-value">{display != null ? display : Math.round(value)}</div>
+      <div className="prop-value">{disabled && note ? note : display != null ? display : Math.round(value)}</div>
     </div>
   );
 }
@@ -35,9 +37,8 @@ export const Properties = memo(function Properties({
   layer,
   layerCount,
   canvasSize,
-  outputSize,
-  cropped,
   duration,
+  crop,
   onPatch,
   onRemove,
 }) {
@@ -47,13 +48,7 @@ export const Properties = memo(function Properties({
       <div className="properties-body">
         <div className="prop-section-title">Project</div>
         <div className="prop-hint">
-          Output frame: {outputSize.w} x {outputSize.h} px
-          {cropped && (
-            <>
-              {" "}
-              <span className="prop-badge">cropped</span> from {canvasSize.w} x {canvasSize.h}
-            </>
-          )}
+          Output frame: {canvasSize.w} x {canvasSize.h} px
           <br />
           Length: {formatTime(duration)}
         </div>
@@ -139,6 +134,8 @@ export const Properties = memo(function Properties({
                   </div>
                 </div>
 
+                {crop.canCrop && <CropControls {...crop} />}
+
                 <Range
                   label="Opacity"
                   value={layer.opacity * 100}
@@ -146,14 +143,6 @@ export const Properties = memo(function Properties({
                   max={100}
                   step={1}
                   onChange={(v) => onPatch({ opacity: v / 100 })}
-                />
-                <Range
-                  label="Brightness"
-                  value={(layer.brightness ?? 1) * 100}
-                  min={0}
-                  max={200}
-                  step={1}
-                  onChange={(v) => onPatch({ brightness: v / 100 })}
                 />
               </>
             )}
@@ -208,6 +197,8 @@ export const Properties = memo(function Properties({
                   min={0}
                   max={100}
                   step={1}
+                  disabled={layer.muted}
+                  note="Muted"
                   onChange={(v) => onPatch({ volume: v / 100 })}
                 />
               </>

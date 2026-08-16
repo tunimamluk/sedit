@@ -55,19 +55,21 @@ state once per frame for the components that display it.
 - **Add Text** — a text overlay you can reposition, recolor, and resize.
 - **Move / resize layers** — drag overlays directly on the preview; corner handles resize. The full-frame base layer deliberately ignores canvas clicks (otherwise every click would select it) — pick it from the Layers panel.
 - **Layers panel** (left) — select, hide, reorder, delete.
-- **Properties panel** (right) — split into **Project** (output frame size and total length, always visible) and **Layer** (size in output pixels, opacity, brightness, speed, volume/mute, duration for stills).
+- **Properties panel** (right) — split into **Project** (output frame size and total length, always visible) and **Layer** (size in output pixels, crop, opacity, speed, volume/mute, duration for stills). Volume is disabled while a layer is muted.
 - **Speed** — 0.25×–4×, set **per layer** in the Layer section. Each clip runs at its own rate, and the panel shows how long it ends up on the timeline (a 12s clip at 2× takes 6s). Stills have no speed — set their Duration instead.
 - **Timeline** (bottom) — drag the two handles to trim the start and end. Click or drag anywhere on the bar to scrub.
-- **Crop** — a two-step process, driven from a small toolbar floating over the preview:
-  1. Press **Crop**. The frame dims outside a draggable region with rule-of-thirds guides.
-  2. Optionally lock a ratio (16:9, 9:16, 1:1, 4:3, 3:4, 4:5, 21:9) — the default is **Free**. Hold **Shift** while dragging a corner to keep whatever ratio the box currently has. The centre button snaps the region to the middle of the frame.
-  3. Confirm with the checkmark or **Enter**; cancel with the X or **Escape**.
+- **Crop** — cropping is **per layer** and works as a process, from the Layer section of the right panel:
+  1. Select a video or image layer and press **Crop layer**.
+  2. Drag the region over the layer. Optionally lock a ratio (default **Free**), hold **Shift** on a corner to keep the current ratio, or **Snap to middle**.
+  3. **Apply** (or **Enter**) cuts the layer down to that region; **Cancel** (or **Escape**) discards it. An **Undo** button then appears to restore the layer.
 
-  Confirming actually resizes the output frame, so the preview becomes what you'll export. An **Undo** button then appears next to Crop to revert to the full frame. When you're not cropping, those are the only crop controls on screen.
+  Cropping cuts pixels out of the layer's source rather than scaling it, and only affects that layer — the output frame stays the size of the composition.
 - **Theme** — the sun/moon button in the top bar toggles light/dark. Your choice is remembered; it defaults to your OS setting.
-- **Export** — pick a format in the top bar (the menu only lists what your browser can actually record — Chrome offers MP4/H.264 and WebM), then Export renders the trimmed range with crop, speed, and layers applied.
+- **Export** — the output name defaults to `edited <your clip's name>` (change it and it stops auto-deriving). Pick a format in the top bar (the menu only lists what your browser can actually record — Chrome offers MP4/H.264 and WebM), then Export renders the trimmed range with crop, speed, and layers applied.
 
-**Opacity vs brightness:** opacity blends the layer with whatever is behind it. For the full-frame base layer that's black, so lowering opacity there just darkens the picture — which is why there's now a separate Brightness control that actually adjusts exposure. Use brightness for the base video, opacity for overlays.
+## Time display
+
+Times read as `12.34` under a minute, `1:05.40` past one, `1:01:05.40` past an hour — hundredths always, larger units only when they are non-zero.
 
 ## Units
 

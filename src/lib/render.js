@@ -1,5 +1,47 @@
 import { isLayerActive } from "./time.js";
 
+/** True when every video that should be on screen at `t` can actually be
+    drawn. If it isn't, repainting would clear the canvas to black and then
+    skip the video, which shows up as a flash while a seek completes. Callers
+    should hold the previous frame instead. */
+export function canComposite(layers, media, t) {
+  for (const l of layers) {
+    if (!l.visible || l.type !== "video") continue;
+    if (!isLayerActive(l, t)) continue;
+    const el = media[l.id];
+    if (!el || el.readyState < 2) return false;
+  }
+  return true;
+}
+
+/* A layer's `srcCrop` selects a sub-rectangle of its *source* media, as
+   percentages. Cropping a layer therefore cuts pixels away rather than
+   scaling them, which is what makes it a crop and not a resize. */
+function drawSource(ctx, el, l, px, py, pw, ph) {
+  const S = l.srcCrop;
+  const srcW = el.videoWidth || el.naturalWidth || 0;
+  const srcH = el.videoHeight || el.naturalHeight || 0;
+  const cropped =
+    S && srcW && srcH && (S.w < 99.99 || S.h < 99.99 || S.x > 0.01 || S.y > 0.01);
+
+  try {
+    if (cropped) {
+      ctx.drawImage(
+        el,
+        (S.x / 100) * srcW,
+        (S.y / 100) * srcH,
+        (S.w / 100) * srcW,
+        (S.h / 100) * srcH,
+        px, py, pw, ph
+      );
+    } else {
+      ctx.drawImage(el, px, py, pw, ph);
+    }
+  } catch {
+    /* frame not decodable yet */
+  }
+}
+
 function wrapText(c, text, x, y, maxWidth, lineHeight) {
   const words = String(text).split(/\s+/);
   let line = "";
@@ -46,9 +88,6 @@ export function drawComposition(canvas, layers, media, t, frame) {
 
     ctx.save();
     ctx.globalAlpha = l.opacity != null ? l.opacity : 1;
-    if (l.brightness != null && l.brightness !== 1) {
-      ctx.filter = "brightness(" + l.brightness + ")";
-    }
 
     // layer rects are percentages of the composition frame, shifted into
     // canvas space by the crop origin
@@ -62,19 +101,11 @@ export function drawComposition(canvas, layers, media, t, frame) {
       // readyState can dip right after a seek; drawing anyway would clear the
       // frame to black, so hold the last good frame until the decoder catches up.
       if (el && el.readyState >= 2) {
-        try {
-          ctx.drawImage(el, px, py, pw, ph);
-        } catch {
-          /* frame not decodable yet */
-        }
+        drawSource(ctx, el, l, px, py, pw, ph);
       }
     } else if (l.type === "image") {
       if (el && el.complete) {
-        try {
-          ctx.drawImage(el, px, py, pw, ph);
-        } catch {
-          /* not decoded yet */
-        }
+        drawSource(ctx, el, l, px, py, pw, ph);
       }
     } else if (l.type === "text") {
       const fs = (l.fontSize / 100) * fh;

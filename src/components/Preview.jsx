@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clamp, isFullFrame, isLayerActive } from "../lib/time.js";
 import { cropPixelRatio, parseAspect, resizeCrop } from "../lib/geometry.js";
-import { CropToolbar } from "./CropToolbar.jsx";
 
 const HANDLES = ["nw", "ne", "sw", "se"];
 const FULL_VIEW = { x: 0, y: 0, w: 100, h: 100 };
@@ -15,12 +14,10 @@ export function Preview({
   cropMode,
   draftCrop,
   onDraftCrop,
-  appliedCrop,
   aspect,
   frameSize,
   time,
   onDropFiles,
-  cropToolbar,
 }) {
   const stageRef = useRef(null);
   const [frame, setFrame] = useState(null);
@@ -28,10 +25,9 @@ export function Preview({
   const [dropActive, setDropActive] = useState(false);
   const dragRef = useRef(null);
 
-  /* While cropping we show the whole composition so the region can be drawn
-     freely; otherwise the canvas shows only the applied crop, so overlay
-     coordinates have to be mapped through it. */
-  const view = cropMode ? FULL_VIEW : appliedCrop;
+  /* The canvas always shows the whole composition; crops are baked into the
+     layers themselves, so overlay coordinates map straight through. */
+  const view = FULL_VIEW;
 
   const toPxX = (pct) => (frame ? ((pct - view.x) / view.w) * frame.width : 0);
   const toPxY = (pct) => (frame ? ((pct - view.y) / view.h) * frame.height : 0);
@@ -56,7 +52,7 @@ export function Preview({
     });
   }, [canvasRef]);
 
-  useLayoutEffect(measure, [measure, frameSize, cropMode, appliedCrop, layers.length]);
+  useLayoutEffect(measure, [measure, frameSize, cropMode, layers.length]);
 
   useEffect(() => {
     const ro = new ResizeObserver(measure);
@@ -178,6 +174,7 @@ export function Preview({
     : { display: "none" };
 
   const c = draftCrop;
+  const showCrop = cropMode && frame && c;
 
   return (
     <div
@@ -234,7 +231,7 @@ export function Preview({
         </div>
       )}
 
-      {cropMode && frame && (
+      {showCrop && (
         <div className="crop-overlay" style={frameStyle}>
           <div className="crop-mask" style={{ left: 0, top: 0, width: "100%", height: toPxY(c.y) }} />
           <div
@@ -294,8 +291,6 @@ export function Preview({
           </div>
         </div>
       )}
-
-      <CropToolbar {...cropToolbar} />
     </div>
   );
 }

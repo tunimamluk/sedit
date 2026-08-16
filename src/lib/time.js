@@ -43,11 +43,17 @@ export function projectDuration(layers) {
   return Math.max(max, 1);
 }
 
+/** Hundredths always; larger units only when they are actually non-zero.
+    12.4s -> "12.40",  65.4s -> "1:05.40",  3665.4s -> "1:01:05.40" */
 export function formatTime(sec) {
   if (!isFinite(sec) || sec < 0) sec = 0;
-  const m = Math.floor(sec / 60);
-  const s = sec - m * 60;
-  return m + ":" + s.toFixed(1).padStart(4, "0");
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const ss = s.toFixed(2).padStart(5, "0");
+  if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + ss;
+  if (m > 0) return m + ":" + ss;
+  return s.toFixed(2);
 }
 
 /** Covers the entire output frame (i.e. the base layer). */

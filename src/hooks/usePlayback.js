@@ -38,10 +38,13 @@ export function usePlayback({ layersRef, mediaRef, trimRef, onFrame, onEnd }) {
         if (!el || !el.pause) continue;
         el.pause();
         if (isLayerActive(l, t)) {
-          try {
-            el.currentTime = layerLocalTime(l, t);
-          } catch {
-            /* not seekable yet */
+          const target = layerLocalTime(l, t);
+          if (Math.abs(el.currentTime - target) > 0.02) {
+            try {
+              el.currentTime = target;
+            } catch {
+              /* not seekable yet */
+            }
           }
         }
       }
@@ -133,10 +136,16 @@ export function usePlayback({ layersRef, mediaRef, trimRef, onFrame, onEnd }) {
       const el = media[l.id];
       if (!el || !el.play) continue;
       if (isLayerActive(l, start)) {
-        try {
-          el.currentTime = layerLocalTime(l, start);
-        } catch {
-          /* not seekable yet */
+        // Only seek if it is actually somewhere else. Resuming after a pause
+        // lands on the position the element already holds, and a redundant
+        // seek flushes the decoder -- which shows as a black flash.
+        const target = layerLocalTime(l, start);
+        if (Math.abs(el.currentTime - target) > 0.05) {
+          try {
+            el.currentTime = target;
+          } catch {
+            /* not seekable yet */
+          }
         }
         el.playbackRate = layerSpeed(l);
         el.play().catch(() => {});
