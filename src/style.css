@@ -1370,3 +1370,10 @@ input[type="range"].prop-range::-webkit-slider-thumb{
 ::-webkit-scrollbar-track{ background: transparent; }
 ::-webkit-scrollbar-thumb{ background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover{ background: var(--text-faint); }
+
+/* sub-controls that belong to the switch above them */
+.prop-indent{
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-soft);
+}

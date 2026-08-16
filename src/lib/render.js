@@ -1,5 +1,5 @@
 import { isLayerActive } from "./time.js";
-import { fontString } from "./text.js";
+import { fontString, ofHeight } from "./text.js";
 
 /** True when every video that should be on screen at `t` can actually be
     drawn. If it isn't, repainting would clear the canvas to black and then
@@ -67,17 +67,64 @@ function layoutText(c, text, maxWidth) {
   return lines;
 }
 
-/* Canvas has no underline, so it is drawn: a rule under the ink, positioned
-   and sized from the metrics rather than guessed. */
-function drawTextBlock(c, l, px, py, pw, fs) {
+/** roundRect is not everywhere yet, and a square box is a fine fallback. */
+function boxPath(c, x, y, w, h, r) {
+  c.beginPath();
+  if (r > 0 && c.roundRect) c.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2));
+  else c.rect(x, y, w, h);
+}
+
+/* Draws the text and, if it has one, the box behind it.
+
+   The box hugs the text rather than filling the whole layer rect: a caption
+   wants a plate just big enough for its words, and padding only means
+   something if it is measured from the ink. The caller must have set the font
+   already, since every measurement here depends on it. */
+function drawTextBlock(c, l, px, py, pw, fs, fh) {
   const align = l.align || "left";
-  const anchor = align === "center" ? px + pw / 2 : align === "right" ? px + pw : px;
   const lineHeight = fs * 1.25;
 
-  c.textAlign = align;
   c.textBaseline = "top";
-
   const lines = layoutText(c, l.text || "", pw);
+
+  let maxW = 0;
+  for (const line of lines) maxW = Math.max(maxW, c.measureText(line).width);
+  const blockH = (lines.length - 1) * lineHeight + fs * 1.18;
+
+  const pad = ofHeight(l.padding, fh);
+  const bw = ofHeight(l.borderWidth, fh);
+  const hasFill = !!l.fillOn && !!l.boxFill;
+  const hasBorder = !!l.borderOn && !!l.borderColor && bw > 0;
+
+  if ((hasFill || hasBorder) && maxW > 0) {
+    // where the ink sits, so the box can be wrapped around it
+    const textLeft =
+      align === "center" ? px + (pw - maxW) / 2 : align === "right" ? px + pw - maxW : px;
+
+    c.save();
+    c.shadowColor = "transparent";
+    c.shadowBlur = 0;
+    boxPath(c, textLeft - pad, py - pad, maxW + pad * 2, blockH + pad * 2, ofHeight(l.radius, fh));
+    if (hasFill) {
+      c.fillStyle = l.boxFill;
+      c.fill();
+    }
+    if (hasBorder) {
+      c.strokeStyle = l.borderColor;
+      c.lineWidth = bw;
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  c.fillStyle = l.color || "#ffffff";
+  if (l.shadow !== false) {
+    c.shadowColor = "rgba(0,0,0,0.6)";
+    c.shadowBlur = fs * 0.15;
+  }
+  c.textAlign = align;
+  const anchor = align === "center" ? px + pw / 2 : align === "right" ? px + pw : px;
+
   lines.forEach((line, i) => {
     const y = py + i * lineHeight;
     c.fillText(line, anchor, y);
@@ -142,13 +189,9 @@ export function drawComposition(canvas, layers, media, t, frame) {
       }
     } else if (l.type === "text") {
       const fs = (l.fontSize / 100) * fh;
-      ctx.fillStyle = l.color || "#ffffff";
+      // the font has to be set before drawTextBlock measures anything
       ctx.font = fontString(l, fs);
-      if (l.shadow !== false) {
-        ctx.shadowColor = "rgba(0,0,0,0.6)";
-        ctx.shadowBlur = fs * 0.15;
-      }
-      drawTextBlock(ctx, l, px, py, pw, fs);
+      drawTextBlock(ctx, l, px, py, pw, fs, fh);
     }
 
     ctx.restore();

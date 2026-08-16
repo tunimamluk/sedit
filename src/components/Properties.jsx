@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { clamp, clipEnd, clipStart, formatTime, sourceLen } from "../lib/time.js";
-import { FONTS, SIZE_PRESETS, TEXT_SWATCHES } from "../lib/text.js";
+import { BOX_DEFAULTS, FONTS, ofHeight, SIZE_PRESETS, TEXT_SWATCHES } from "../lib/text.js";
 import { CropControls } from "./CropControls.jsx";
 import { NumberInput } from "./NumberInput.jsx";
 import { Icon } from "./Icon.jsx";
@@ -46,6 +46,42 @@ function Seg({ active, onClick, title, children }) {
   );
 }
 
+/* A colour square that opens the picker, with the colours a caption actually
+   wants one click away. Shared by the text, the fill and the border. */
+function ColourRow({ value, onChange }) {
+  return (
+    <div className="colour-row">
+      <label className="swatch swatch-custom" title="Pick any colour">
+        <span className="swatch-fill" style={{ background: value }} />
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} />
+      </label>
+      <div className="swatch-set">
+        {TEXT_SWATCHES.map((c) => (
+          <button
+            key={c}
+            className={"swatch" + (String(value).toLowerCase() === c ? " active" : "")}
+            style={{ background: c }}
+            title={c}
+            onClick={() => onChange(c)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({ label, checked, onChange }) {
+  return (
+    <div className="prop-toggle-row">
+      <div className="prop-label">{label}</div>
+      <label className="switch">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <div className="switch-track" />
+      </label>
+    </div>
+  );
+}
+
 /* The whole text editor, kept together so the layer panel below stays
    readable. Sizes are stored as a percentage of the frame height and shown
    in pixels of the current frame -- the number that means something while
@@ -53,6 +89,10 @@ function Seg({ active, onClick, title, children }) {
 function TextControls({ layer, canvasSize, onPatch }) {
   const px = Math.round((layer.fontSize / 100) * canvasSize.h);
   const setPx = (v) => onPatch({ fontSize: (v / canvasSize.h) * 100 });
+  // On/off is its own flag, so the colour and thickness you chose survive
+  // being switched off and back on.
+  const hasFill = !!layer.fillOn;
+  const hasBorder = !!layer.borderOn;
 
   return (
     <>
@@ -139,40 +179,78 @@ function TextControls({ layer, canvasSize, onPatch }) {
 
       <div className="prop-group">
         <div className="prop-label">Colour</div>
-        <div className="colour-row">
-          <label className="swatch swatch-custom" title="Pick any colour">
-            <span className="swatch-fill" style={{ background: layer.color }} />
-            <input
-              type="color"
-              value={layer.color}
-              onChange={(e) => onPatch({ color: e.target.value })}
-            />
-          </label>
-          <div className="swatch-set">
-            {TEXT_SWATCHES.map((c) => (
-              <button
-                key={c}
-                className={"swatch" + (layer.color.toLowerCase() === c ? " active" : "")}
-                style={{ background: c }}
-                title={c}
-                onClick={() => onPatch({ color: c })}
-              />
-            ))}
-          </div>
-        </div>
+        <ColourRow value={layer.color} onChange={(v) => onPatch({ color: v })} />
       </div>
 
-      <div className="prop-toggle-row">
-        <div className="prop-label">Drop shadow</div>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={layer.shadow !== false}
-            onChange={(e) => onPatch({ shadow: e.target.checked })}
+      <ToggleRow
+        label="Drop shadow"
+        checked={layer.shadow !== false}
+        onChange={(v) => onPatch({ shadow: v })}
+      />
+
+      {/* ---- the box behind the text ---- */}
+
+      <ToggleRow label="Background" checked={hasFill} onChange={(v) => onPatch({ fillOn: v })} />
+      {hasFill && (
+        <div className="prop-group prop-indent">
+          <ColourRow
+            value={layer.boxFill || BOX_DEFAULTS.fill}
+            onChange={(v) => onPatch({ boxFill: v })}
           />
-          <div className="switch-track" />
-        </label>
-      </div>
+        </div>
+      )}
+
+      <ToggleRow label="Border" checked={hasBorder} onChange={(v) => onPatch({ borderOn: v })} />
+      {hasBorder && (
+        <div className="prop-group prop-indent">
+          <ColourRow
+            value={layer.borderColor || BOX_DEFAULTS.borderColor}
+            onChange={(v) => onPatch({ borderColor: v })}
+          />
+          <div className="prop-value" style={{ marginTop: 10 }}>
+            Thickness (pixels)
+          </div>
+          <NumberInput
+            value={ofHeight(layer.borderWidth, canvasSize.h)}
+            min={1}
+            max={Math.max(2, Math.round(canvasSize.h / 8))}
+            decimals={0}
+            steppers
+            onChange={(v) => onPatch({ borderWidth: (v / canvasSize.h) * 100 })}
+          />
+        </div>
+      )}
+
+      {(hasFill || hasBorder) && (
+        <div className="prop-group prop-indent">
+          <div className="prop-row">
+            <div style={{ flex: 1 }}>
+              <div className="prop-value">Padding (px)</div>
+              <NumberInput
+                value={ofHeight(layer.padding, canvasSize.h)}
+                min={0}
+                max={Math.round(canvasSize.h / 4)}
+                decimals={0}
+                onChange={(v) => onPatch({ padding: (v / canvasSize.h) * 100 })}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="prop-value">Corner (px)</div>
+              <NumberInput
+                value={ofHeight(layer.radius, canvasSize.h)}
+                min={0}
+                max={Math.round(canvasSize.h / 4)}
+                decimals={0}
+                onChange={(v) => onPatch({ radius: (v / canvasSize.h) * 100 })}
+              />
+            </div>
+          </div>
+          <div className="prop-hint">
+            The box wraps the words themselves, not the whole layer, so padding is measured from
+            the text.
+          </div>
+        </div>
+      )}
     </>
   );
 }
