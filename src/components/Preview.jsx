@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clamp, isFullFrame, isLayerActive } from "../lib/time.js";
-import { cropPixelRatio, parseAspect, resizeCrop } from "../lib/geometry.js";
+import { cropPixelRatio, parseAspect, resizeCrop, snapRect } from "../lib/geometry.js";
 
 const HANDLES = ["nw", "ne", "sw", "se"];
 const FULL_VIEW = { x: 0, y: 0, w: 100, h: 100 };
+
+/* How close, on screen, a drag has to get before it pulls into line. In
+   pixels rather than percent so the pull feels identical whatever size the
+   preview happens to be. */
+const SNAP_PX = 12;
 
 export function Preview({
   canvasRef,
@@ -23,6 +28,7 @@ export function Preview({
   const [frame, setFrame] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [dropActive, setDropActive] = useState(false);
+  const [guides, setGuides] = useState(null);
   const dragRef = useRef(null);
 
   /* The canvas always shows the whole composition; crops are baked into the
@@ -106,6 +112,32 @@ export function Preview({
     setDragging(true);
   };
 
+  /* Pull a dragged rect into line with the frame's centre and edges, and put
+     up a guide saying which. Alt places it freely -- there has to be a way to
+     sit just off centre on purpose. */
+  const place = useCallback(
+    (x, y, w, h, e) => {
+      if (!frame || e.altKey) {
+        setGuides((g) => (g ? null : g));
+        return { x, y };
+      }
+      const r = snapRect(
+        x, y, w, h,
+        (SNAP_PX / frame.width) * view.w,
+        (SNAP_PX / frame.height) * view.h
+      );
+      // Same object identity while nothing changes, so a drag along a guide
+      // is not a re-render per pointermove.
+      setGuides((g) => {
+        if (r.guideX == null && r.guideY == null) return g ? null : g;
+        if (g && g.x === r.guideX && g.y === r.guideY) return g;
+        return { x: r.guideX, y: r.guideY };
+      });
+      return r;
+    },
+    [frame, view]
+  );
+
   useEffect(() => {
     if (!dragging) return;
 
@@ -118,10 +150,8 @@ export function Preview({
 
       if (d.mode === "move") {
         const s = d.start;
-        onLayerRect(d.id, {
-          x: clamp(s.x + dx, 0, 100 - s.w),
-          y: clamp(s.y + dy, 0, 100 - s.h),
-        });
+        const r = place(clamp(s.x + dx, 0, 100 - s.w), clamp(s.y + dy, 0, 100 - s.h), s.w, s.h, e);
+        onLayerRect(d.id, { x: r.x, y: r.y });
       } else if (d.mode === "resize") {
         const s = d.start;
         const min = 4;
@@ -142,11 +172,8 @@ export function Preview({
         onLayerRect(d.id, r);
       } else if (d.mode === "crop-move") {
         const s = d.start;
-        onDraftCrop({
-          ...draftCrop,
-          x: clamp(s.x + dx, 0, 100 - s.w),
-          y: clamp(s.y + dy, 0, 100 - s.h),
-        });
+        const r = place(clamp(s.x + dx, 0, 100 - s.w), clamp(s.y + dy, 0, 100 - s.h), s.w, s.h, e);
+        onDraftCrop({ ...draftCrop, x: r.x, y: r.y });
       } else if (d.mode === "crop-resize") {
         // Shift keeps whatever ratio the box had when the drag began; the
         // picker locks it to a fixed one for the whole drag.
@@ -159,6 +186,7 @@ export function Preview({
     const onUp = () => {
       dragRef.current = null;
       setDragging(false);
+      setGuides(null);
     };
 
     document.addEventListener("pointermove", onMove);
@@ -167,7 +195,7 @@ export function Preview({
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
     };
-  }, [dragging, frame, view, draftCrop, aspect, frameSize, onLayerRect, onDraftCrop]);
+  }, [dragging, frame, view, draftCrop, aspect, frameSize, onLayerRect, onDraftCrop, place]);
 
   const frameStyle = frame
     ? { left: frame.left, top: frame.top, width: frame.width, height: frame.height }
@@ -202,6 +230,17 @@ export function Preview({
       )}
 
       <div className="stage-overlay" style={frameStyle} onPointerDown={onPointerDownStage} />
+
+      {guides && frame && (
+        <div className="guides" style={frameStyle}>
+          {guides.x != null && (
+            <div className="guide guide-v" style={{ left: toPxX(guides.x) }} />
+          )}
+          {guides.y != null && (
+            <div className="guide guide-h" style={{ top: toPxY(guides.y) }} />
+          )}
+        </div>
+      )}
 
       {showSelection && (
         <div

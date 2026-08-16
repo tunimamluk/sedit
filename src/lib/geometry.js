@@ -91,3 +91,44 @@ export function applyAspectToCrop(c, ratio, cw, ch) {
     y: clamp(cy - h / 2, 0, 100 - h),
   };
 }
+
+/* ---- snapping ----
+
+   Dragging something to dead centre by hand is fiddly: you land a fraction of
+   a percent off and the title looks wrong in a way that is hard to see but
+   easy to feel. So a drag pulls to the frame's centre line and to its edges
+   once it is within a few pixels, and a guide is drawn to say which. */
+
+/** Where a rect of `size` sits when its start / centre / end is aligned to
+    the corresponding part of the frame, and the guide line that shows it. */
+const SNAP_TARGETS = [
+  { align: 0, guide: 0 },
+  { align: 0.5, guide: 50 },
+  { align: 1, guide: 100 },
+];
+
+/** The nearest alignment within `tol`, or null. All values are composition
+    percentages; `tol` is a percentage too, so callers convert from pixels and
+    the pull feels the same however big the preview is. */
+export function snapAxis(pos, size, tol) {
+  let best = null;
+  for (const t of SNAP_TARGETS) {
+    const want = t.align * (100 - size);
+    const d = Math.abs(pos - want);
+    if (d <= tol && (!best || d < best.d)) best = { d, pos: want, guide: t.guide };
+  }
+  return best;
+}
+
+/** Snap both axes of a rect. Returns the position to use plus the guides to
+    draw (percentages, or null where that axis did not snap). */
+export function snapRect(x, y, w, h, tolX, tolY) {
+  const sx = snapAxis(x, w, tolX);
+  const sy = snapAxis(y, h, tolY);
+  return {
+    x: sx ? sx.pos : x,
+    y: sy ? sy.pos : y,
+    guideX: sx ? sx.guide : null,
+    guideY: sy ? sy.guide : null,
+  };
+}

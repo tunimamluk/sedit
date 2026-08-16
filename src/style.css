@@ -1084,6 +1084,23 @@ input[type="range"].prop-range::-webkit-slider-thumb{
   line-height: 1.45;
 }
 
+/* ---------- Alignment guides ---------- */
+
+.guides{
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.guide{
+  position: absolute;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.guide-v{ top: -6px; bottom: -6px; width: 1px; }
+.guide-h{ left: -6px; right: -6px; height: 1px; }
+
 /* ---------- Text controls ---------- */
 
 /* Size field: steppers either side of a box you can type any number into,

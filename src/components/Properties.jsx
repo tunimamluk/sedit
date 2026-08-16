@@ -407,7 +407,8 @@ export const Properties = memo(function Properties({
                   </div>
                   <div className="prop-hint">
                     Pixels in the {canvasSize.w}x{canvasSize.h} output frame. Drag the layer on the
-                    preview to move it.
+                    preview to move it -- it snaps to the centre and the edges, and Alt places it
+                    anywhere.
                   </div>
                 </div>
 
