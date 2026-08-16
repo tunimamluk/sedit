@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+._*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Scratch / local test artifacts
+shot-*.html
+test-*.html
+*.log
