@@ -71,6 +71,7 @@ function ZoomField({ zoom, onZoom }) {
 
 export function Timeline({
   duration,
+  span,
   trimIn,
   trimOut,
   onTrim,
@@ -88,6 +89,12 @@ export function Timeline({
   const barRef = useRef(null);
   const scrollRef = useRef(null);
   const [drag, setDrag] = useState(null);
+
+  /* Everything on the ruler is positioned against `scale`, never `duration`.
+     Moving a clip past the end does legitimately widen the ruler, so a drag
+     holds the scale it started with -- otherwise the ground shifts under the
+     cursor mid-gesture and the clip lags behind the pointer. */
+  const scale = drag && drag.span ? drag.span : span;
 
   /* Ctrl/Cmd + wheel zooms continuously. Registered by hand because React
      attaches wheel listeners passively, and a passive listener cannot
@@ -107,9 +114,9 @@ export function Timeline({
   const timeAt = useCallback(
     (clientX) => {
       const r = barRef.current.getBoundingClientRect();
-      return clamp((clientX - r.left) / r.width, 0, 1) * duration;
+      return clamp((clientX - r.left) / r.width, 0, 1) * scale;
     },
-    [duration]
+    [scale]
   );
 
   useEffect(() => {
@@ -162,7 +169,7 @@ export function Timeline({
     };
   }, [drag, timeAt, onTrim, onScrub, onMoveTrack, onTrimTrack, trimIn, trimOut, duration]);
 
-  const pct = (t) => (t / duration) * 100;
+  const pct = (t) => (t / scale) * 100;
 
   /* Snapshot of everything a clip drag needs, frozen at pointerdown. */
   const clipDrag = (kind, t, e) => {
@@ -171,7 +178,8 @@ export function Timeline({
       kind,
       id: t.id,
       startX: e.clientX,
-      secPerPx: duration / r.width,
+      span: scale,
+      secPerPx: scale / r.width,
       offset: t.offset,
       clipStart: t.clipStart || 0,
       clipEnd: t.clipEnd != null ? t.clipEnd : t.duration || 0,

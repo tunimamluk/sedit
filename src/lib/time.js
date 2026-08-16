@@ -56,6 +56,37 @@ export function projectDuration(layers) {
   return Math.max(max, 1);
 }
 
+/* ---- the ruler's scale ----
+
+   The timeline must NOT be scaled by the project duration. Trimming a clip
+   shortens the project by exactly the amount you trim, so a clip that is the
+   longest thing in the project keeps a width of layerLen/duration = 100% no
+   matter how far you drag its edge: the ruler shrinks instead of the clip
+   moving, which reads as "the trim does nothing and the video timeline
+   jumps". The scale has to come from something trimming cannot change. */
+
+/** How far a clip could reach if it were not trimmed. Trimming the left edge
+    moves `offset` and `clipStart` together and trimming the right edge moves
+    neither, so this is invariant across both. */
+export function layerSpan(l) {
+  if (l.type === "image" || l.type === "text") return l.offset + (l.len || 0);
+  return l.offset - clipStart(l) + (l.duration || 0);
+}
+
+const NICE_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600];
+
+/** Width of the ruler in seconds. Rounded up to a round number, always with
+    one step left over, so there is somewhere to drag a clip past the end
+    without the whole timeline rescaling underneath the cursor. */
+export function timelineSpan(items) {
+  let max = 0;
+  for (const l of items) max = Math.max(max, layerSpan(l));
+  if (!(max > 0)) return 1;
+  let step = NICE_STEPS[0];
+  for (const s of NICE_STEPS) if (s <= max / 8) step = s;
+  return (Math.floor(max / step) + 1) * step;
+}
+
 /** Hundredths always; larger units only when they are actually non-zero.
     12.4s -> "12.40",  65.4s -> "1:05.40",  3665.4s -> "1:01:05.40" */
 export function formatTime(sec) {

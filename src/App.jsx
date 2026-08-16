@@ -10,7 +10,7 @@ import { useTheme } from "./hooks/useTheme.js";
 import { usePlayback } from "./hooks/usePlayback.js";
 import { canComposite, drawComposition } from "./lib/render.js";
 import { applyAspectToCrop, parseAspect } from "./lib/geometry.js";
-import { clamp, formatTime, layerLen, projectDuration } from "./lib/time.js";
+import { clamp, formatTime, layerLen, projectDuration, timelineSpan } from "./lib/time.js";
 import { findFormat, supportedFormats } from "./lib/formats.js";
 import { applyLevel, createMediaStore, disposeMedia, exportGain, resumeAudio } from "./lib/media.js";
 
@@ -67,6 +67,8 @@ export default function App() {
   }, [trim]);
 
   const duration = useMemo(() => projectDuration([...layers, ...tracks]), [layers, tracks]);
+  // What the ruler measures. Deliberately not `duration` -- see timelineSpan.
+  const span = useMemo(() => timelineSpan([...layers, ...tracks]), [layers, tracks]);
   // Nothing loaded means nothing to play or trim; projectDuration floors at 1s
   // for the maths, which would otherwise make an empty project look playable.
   const hasMedia = layers.length > 0 || tracks.length > 0;
@@ -653,6 +655,7 @@ export default function App() {
 
           <Timeline
             duration={duration}
+            span={span}
             trimIn={trim.trimIn}
             trimOut={trim.trimOut}
             onTrim={(patch) =>
