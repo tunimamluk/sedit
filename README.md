@@ -58,7 +58,12 @@ state once per frame for the components that display it.
 - **Properties panel** (right) — split into **Project** (output frame size and total length, always visible) and **Layer** (size in output pixels, opacity, brightness, speed, volume/mute, duration for stills).
 - **Speed** — 0.25×–4×, set **per layer** in the Layer section. Each clip runs at its own rate, and the panel shows how long it ends up on the timeline (a 12s clip at 2× takes 6s). Stills have no speed — set their Duration instead.
 - **Timeline** (bottom) — drag the two handles to trim the start and end. Click or drag anywhere on the bar to scrub.
-- **Crop** — toggle **Crop**, then drag the rectangle or its corners. Pick a ratio from the dropdown (16:9, 9:16, 1:1, 4:3, 3:4, 4:5, 21:9) to lock it, or hold **Shift** while dragging a corner to preserve whatever ratio the box currently has. The badge shows the exact output size in pixels.
+- **Crop** — a two-step process, driven from a small toolbar floating over the preview:
+  1. Press **Crop**. The frame dims outside a draggable region with rule-of-thirds guides.
+  2. Optionally lock a ratio (16:9, 9:16, 1:1, 4:3, 3:4, 4:5, 21:9) — the default is **Free**. Hold **Shift** while dragging a corner to keep whatever ratio the box currently has. The centre button snaps the region to the middle of the frame.
+  3. Confirm with the checkmark or **Enter**; cancel with the X or **Escape**.
+
+  Confirming actually resizes the output frame, so the preview becomes what you'll export. An **Undo** button then appears next to Crop to revert to the full frame. When you're not cropping, those are the only crop controls on screen.
 - **Theme** — the sun/moon button in the top bar toggles light/dark. Your choice is remembered; it defaults to your OS setting.
 - **Export** — pick a format in the top bar (the menu only lists what your browser can actually record — Chrome offers MP4/H.264 and WebM), then Export renders the trimmed range with crop, speed, and layers applied.
 

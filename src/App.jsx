@@ -32,7 +32,11 @@ export default function App() {
   const [canvasSize, setCanvasSize] = useState(DEFAULT_SIZE);
   const [sizeLocked, setSizeLocked] = useState(false);
 
-  const [crop, setCrop] = useState({ x: 0, y: 0, w: 100, h: 100 });
+  // `crop` is the applied crop; `draftCrop` is what you are drawing while in
+  // crop mode. Percentages of the composition frame.
+  const FULL_CROP = { x: 0, y: 0, w: 100, h: 100 };
+  const [crop, setCrop] = useState(FULL_CROP);
+  const [draftCrop, setDraftCrop] = useState(FULL_CROP);
   const [aspect, setAspect] = useState("free");
   const [cropMode, setCropMode] = useState(false);
 
@@ -60,30 +64,45 @@ export default function App() {
 
   const duration = useMemo(() => projectDuration(layers), [layers]);
 
+  const hasCrop = crop.w < 99.5 || crop.h < 99.5 || crop.x > 0.5 || crop.y > 0.5;
+
+  /* The canvas *is* the output: an applied crop shrinks it and shifts the
+     origin, so the preview shows exactly what gets exported. While cropping we
+     temporarily show the whole frame so the region can be drawn. */
+  const outputSize = useMemo(() => {
+    if (cropMode || !hasCrop) return { w: canvasSize.w, h: canvasSize.h };
+    return {
+      // even dimensions keep the video codecs happy
+      w: Math.max(2, Math.round(((crop.w / 100) * canvasSize.w) / 2) * 2),
+      h: Math.max(2, Math.round(((crop.h / 100) * canvasSize.h) / 2) * 2),
+    };
+  }, [cropMode, hasCrop, crop, canvasSize]);
+
+  const viewRef = useRef({ frame: canvasSize, crop: FULL_CROP, cropMode: false });
+  viewRef.current = { frame: canvasSize, crop, cropMode };
+
   /* ---- canvas sizing ---- */
 
   useEffect(() => {
     const c = canvasRef.current;
     if (c) {
-      c.width = canvasSize.w;
-      c.height = canvasSize.h;
+      c.width = outputSize.w;
+      c.height = outputSize.h;
     }
-  }, [canvasSize]);
+  }, [outputSize]);
 
   /* ---- drawing ---- */
 
   const paint = useCallback((t) => {
-    drawComposition(canvasRef.current, layersRef.current, mediaRef.current.elements, t);
-    const ex = exportRef.current;
-    if (ex) {
-      const { ctx, canvas, crop: c } = ex;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      try {
-        ctx.drawImage(canvasRef.current, c.px, c.py, c.pw, c.ph, 0, 0, canvas.width, canvas.height);
-      } catch {
-        /* source not ready */
-      }
-    }
+    const v = viewRef.current;
+    const offsetX = v.cropMode ? 0 : (v.crop.x / 100) * v.frame.w;
+    const offsetY = v.cropMode ? 0 : (v.crop.y / 100) * v.frame.h;
+    drawComposition(canvasRef.current, layersRef.current, mediaRef.current.elements, t, {
+      w: v.frame.w,
+      h: v.frame.h,
+      offsetX,
+      offsetY,
+    });
   }, []);
 
   const onFrame = useCallback(
@@ -116,7 +135,7 @@ export default function App() {
   // repaint whenever anything visual changes while paused
   useEffect(() => {
     if (!playing) paint(playhead);
-  }, [layers, canvasSize, playing, playhead, paint]);
+  }, [layers, canvasSize, outputSize, crop, cropMode, draftCrop, playing, playhead, paint]);
 
   /* ---- trim follows duration ---- */
 
@@ -293,13 +312,40 @@ export default function App() {
 
   /* ---- crop ---- */
 
+  /* Crop is a process: start -> adjust -> confirm (or cancel). Only the
+     confirmed result affects the output, and Undo reverts it. */
+
+  const startCrop = useCallback(() => {
+    setDraftCrop(crop);
+    setCropMode(true);
+  }, [crop]);
+
+  const confirmCrop = useCallback(() => {
+    setCrop(draftCrop);
+    setCropMode(false);
+  }, [draftCrop]);
+
+  const cancelCrop = useCallback(() => {
+    setDraftCrop(crop);
+    setCropMode(false);
+  }, [crop]);
+
+  const undoCrop = useCallback(() => {
+    setCrop(FULL_CROP);
+    setDraftCrop(FULL_CROP);
+    setAspect("free");
+  }, []);
+
+  const centerCrop = useCallback(() => {
+    setDraftCrop((c) => ({ ...c, x: (100 - c.w) / 2, y: (100 - c.h) / 2 }));
+  }, []);
+
   const changeAspect = useCallback(
     (value) => {
       setAspect(value);
       const ratio = parseAspect(value);
       if (ratio) {
-        setCrop((c) => applyAspectToCrop(c, ratio, canvasSize.w, canvasSize.h));
-        setCropMode(true);
+        setDraftCrop((c) => applyAspectToCrop(c, ratio, canvasSize.w, canvasSize.h));
       }
     },
     [canvasSize]
@@ -341,6 +387,12 @@ export default function App() {
     const onKey = (e) => {
       const tag = e.target && e.target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (cropMode && (e.key === "Enter" || e.key === "Escape")) {
+        e.preventDefault();
+        if (e.key === "Enter") confirmCrop();
+        else cancelCrop();
+        return;
+      }
       if (e.code === "Space") {
         e.preventDefault();
         toggle();
@@ -348,7 +400,7 @@ export default function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [toggle]);
+  }, [toggle, cropMode, confirmCrop, cancelCrop]);
 
   /* ---- export ---- */
 
@@ -362,6 +414,7 @@ export default function App() {
   const startExport = useCallback(() => {
     if (layers.length === 0) return flash("Add some media first");
     if (typeof MediaRecorder === "undefined") return flash("This browser can't record");
+    if (cropMode) return flash("Apply or cancel the crop first");
     if (playing) pause();
 
     const fmt = findFormat(format, onlyAudio);
@@ -376,28 +429,14 @@ export default function App() {
       }
     }
 
-    let stream;
-    let exCanvas = null;
-    let exCtx = null;
-    let cropPx = null;
-
-    if (!onlyAudio) {
-      const cw = canvasSize.w;
-      const ch = canvasSize.h;
-      // even dimensions keep the codecs happy
-      const pw = Math.max(2, Math.round(((crop.w / 100) * cw) / 2) * 2);
-      const ph = Math.max(2, Math.round(((crop.h / 100) * ch) / 2) * 2);
-      cropPx = { px: (crop.x / 100) * cw, py: (crop.y / 100) * ch, pw, ph };
-
-      exCanvas = document.createElement("canvas");
-      exCanvas.width = pw;
-      exCanvas.height = ph;
-      exCtx = exCanvas.getContext("2d");
-      const vTrack = exCanvas.captureStream(30).getVideoTracks()[0];
-      stream = new MediaStream([vTrack, ...dest.stream.getAudioTracks()]);
-    } else {
-      stream = dest.stream;
-    }
+    // The preview canvas already renders the cropped output, so it can be
+    // recorded directly -- no second crop pass.
+    const stream = onlyAudio
+      ? dest.stream
+      : new MediaStream([
+          canvasRef.current.captureStream(30).getVideoTracks()[0],
+          ...dest.stream.getAudioTracks(),
+        ]);
 
     const recorder = new MediaRecorder(
       stream,
@@ -433,9 +472,6 @@ export default function App() {
 
     exportRef.current = {
       recorder,
-      canvas: exCanvas,
-      ctx: exCtx,
-      crop: cropPx,
       trimIn: trim.trimIn,
       trimOut: trim.trimOut,
       cancel: () => {
@@ -454,7 +490,7 @@ export default function App() {
     recorder.start(200);
     play();
   }, [
-    layers, flash, playing, pause, format, onlyAudio, canvasSize, crop, trim,
+    layers, flash, cropMode, playing, pause, format, onlyAudio, trim,
     filename, seek, play, stop,
   ]);
 
@@ -497,24 +533,31 @@ export default function App() {
             onSelect={setSelectedId}
             onLayerRect={patchLayer}
             cropMode={cropMode}
-            crop={crop}
-            onCrop={setCrop}
+            draftCrop={draftCrop}
+            onDraftCrop={setDraftCrop}
+            appliedCrop={crop}
             aspect={aspect}
-            canvasSize={canvasSize}
+            frameSize={canvasSize}
             time={time}
             onDropFiles={addFiles}
+            cropToolbar={{
+              cropMode,
+              hasCrop,
+              aspect,
+              onAspectChange: changeAspect,
+              onStart: startCrop,
+              onCenter: centerCrop,
+              onConfirm: confirmCrop,
+              onCancel: cancelCrop,
+              onUndo: undoCrop,
+              sizeLabel:
+                Math.round((draftCrop.w / 100) * canvasSize.w) +
+                " x " +
+                Math.round((draftCrop.h / 100) * canvasSize.h),
+            }}
           />
 
-          <Transport
-            playing={playing}
-            onTogglePlay={toggle}
-            time={time}
-            duration={duration}
-            cropMode={cropMode}
-            onToggleCrop={() => setCropMode((c) => !c)}
-            aspect={aspect}
-            onAspectChange={changeAspect}
-          />
+          <Transport playing={playing} onTogglePlay={toggle} time={time} duration={duration} />
 
           <Timeline
             duration={duration}
@@ -537,6 +580,8 @@ export default function App() {
           layer={selected}
           layerCount={layers.length}
           canvasSize={canvasSize}
+          outputSize={outputSize}
+          cropped={hasCrop}
           duration={duration}
           onPatch={(patch) => selected && patchLayer(selected.id, patch)}
           onRemove={() => selected && removeLayer(selected.id)}

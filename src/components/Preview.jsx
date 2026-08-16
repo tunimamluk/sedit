@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clamp, isFullFrame, isLayerActive } from "../lib/time.js";
 import { cropPixelRatio, parseAspect, resizeCrop } from "../lib/geometry.js";
+import { CropToolbar } from "./CropToolbar.jsx";
 
 const HANDLES = ["nw", "ne", "sw", "se"];
+const FULL_VIEW = { x: 0, y: 0, w: 100, h: 100 };
 
 export function Preview({
   canvasRef,
@@ -11,31 +13,50 @@ export function Preview({
   onSelect,
   onLayerRect,
   cropMode,
-  crop,
-  onCrop,
+  draftCrop,
+  onDraftCrop,
+  appliedCrop,
   aspect,
-  canvasSize,
+  frameSize,
   time,
   onDropFiles,
+  cropToolbar,
 }) {
   const stageRef = useRef(null);
   const [frame, setFrame] = useState(null);
   const [dragging, setDragging] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
   const dragRef = useRef(null);
 
-  /* The overlays are absolutely positioned DOM on top of a canvas whose
-     displayed size is driven by CSS object-fit rules, so we measure it
-     rather than assume. */
+  /* While cropping we show the whole composition so the region can be drawn
+     freely; otherwise the canvas shows only the applied crop, so overlay
+     coordinates have to be mapped through it. */
+  const view = cropMode ? FULL_VIEW : appliedCrop;
+
+  const toPxX = (pct) => (frame ? ((pct - view.x) / view.w) * frame.width : 0);
+  const toPxY = (pct) => (frame ? ((pct - view.y) / view.h) * frame.height : 0);
+  const spanPxX = (pct) => (frame ? (pct / view.w) * frame.width : 0);
+  const spanPxY = (pct) => (frame ? (pct / view.h) * frame.height : 0);
+  const toPctX = (px) => view.x + (px / frame.width) * view.w;
+  const toPctY = (px) => view.y + (px / frame.height) * view.h;
+
   const measure = useCallback(() => {
     const stage = stageRef.current;
     const canvas = canvasRef.current;
     if (!stage || !canvas) return;
     const s = stage.getBoundingClientRect();
     const c = canvas.getBoundingClientRect();
-    setFrame({ left: c.left - s.left, top: c.top - s.top, width: c.width, height: c.height, pageLeft: c.left, pageTop: c.top });
+    setFrame({
+      left: c.left - s.left,
+      top: c.top - s.top,
+      width: c.width,
+      height: c.height,
+      pageLeft: c.left,
+      pageTop: c.top,
+    });
   }, [canvasRef]);
 
-  useLayoutEffect(measure, [measure, canvasSize, layers.length]);
+  useLayoutEffect(measure, [measure, frameSize, cropMode, appliedCrop, layers.length]);
 
   useEffect(() => {
     const ro = new ResizeObserver(measure);
@@ -52,12 +73,12 @@ export function Preview({
   const showSelection =
     !cropMode && selected && selected.type !== "audio" && !isFullFrame(selected) && frame;
 
-  /* ---- dragging ---- */
+  /* ---- pointer interaction ---- */
 
   const onPointerDownStage = (e) => {
     if (cropMode || !frame) return;
-    const px = ((e.clientX - frame.pageLeft) / frame.width) * 100;
-    const py = ((e.clientY - frame.pageTop) / frame.height) * 100;
+    const px = toPctX(e.clientX - frame.pageLeft);
+    const py = toPctY(e.clientY - frame.pageTop);
 
     let hit = null;
     for (let i = layers.length - 1; i >= 0; i--) {
@@ -76,49 +97,16 @@ export function Preview({
 
     if (hit) {
       onSelect(hit.id);
-      dragRef.current = {
-        mode: "move",
-        id: hit.id,
-        startX: e.clientX,
-        startY: e.clientY,
-        start: { x: hit.x, y: hit.y, w: hit.w, h: hit.h },
-      };
-      setDragging(true);
+      startDrag({ mode: "move", id: hit.id, e, start: rectOf(hit) });
     } else {
       onSelect(null);
     }
   };
 
-  const beginLayerResize = (e, handle) => {
-    e.stopPropagation();
-    if (!selected) return;
-    dragRef.current = {
-      mode: "resize",
-      id: selected.id,
-      handle,
-      startX: e.clientX,
-      startY: e.clientY,
-      start: { x: selected.x, y: selected.y, w: selected.w, h: selected.h },
-    };
-    setDragging(true);
-  };
+  const rectOf = (l) => ({ x: l.x, y: l.y, w: l.w, h: l.h });
 
-  const beginCropMove = (e) => {
-    if (e.target !== e.currentTarget) return;
-    dragRef.current = { mode: "crop-move", startX: e.clientX, startY: e.clientY, start: { ...crop } };
-    setDragging(true);
-  };
-
-  const beginCropResize = (e, handle) => {
-    e.stopPropagation();
-    dragRef.current = {
-      mode: "crop-resize",
-      handle,
-      startX: e.clientX,
-      startY: e.clientY,
-      start: { ...crop },
-      startRatio: cropPixelRatio(crop, canvasSize.w, canvasSize.h),
-    };
+  const startDrag = ({ mode, id, handle, e, start, startRatio }) => {
+    dragRef.current = { mode, id, handle, startX: e.clientX, startY: e.clientY, start, startRatio };
     setDragging(true);
   };
 
@@ -128,8 +116,9 @@ export function Preview({
     const onMove = (e) => {
       const d = dragRef.current;
       if (!d || !frame) return;
-      const dx = ((e.clientX - d.startX) / frame.width) * 100;
-      const dy = ((e.clientY - d.startY) / frame.height) * 100;
+      // pointer delta expressed in composition percent
+      const dx = ((e.clientX - d.startX) / frame.width) * view.w;
+      const dy = ((e.clientY - d.startY) / frame.height) * view.h;
 
       if (d.mode === "move") {
         const s = d.start;
@@ -157,17 +146,17 @@ export function Preview({
         onLayerRect(d.id, r);
       } else if (d.mode === "crop-move") {
         const s = d.start;
-        onCrop({
-          ...crop,
+        onDraftCrop({
+          ...draftCrop,
           x: clamp(s.x + dx, 0, 100 - s.w),
           y: clamp(s.y + dy, 0, 100 - s.h),
         });
       } else if (d.mode === "crop-resize") {
         // Shift keeps whatever ratio the box had when the drag began; the
-        // dropdown locks it to a fixed one for the whole drag.
+        // picker locks it to a fixed one for the whole drag.
         const locked = parseAspect(aspect);
         const ratio = locked || (e.shiftKey ? d.startRatio : null);
-        onCrop(resizeCrop(d.handle, d.start, dx, dy, ratio, canvasSize.w, canvasSize.h));
+        onDraftCrop(resizeCrop(d.handle, d.start, dx, dy, ratio, frameSize.w, frameSize.h));
       }
     };
 
@@ -182,17 +171,13 @@ export function Preview({
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
     };
-  }, [dragging, frame, crop, aspect, canvasSize, onLayerRect, onCrop]);
-
-  /* ---- drag & drop ---- */
-
-  const [dropActive, setDropActive] = useState(false);
+  }, [dragging, frame, view, draftCrop, aspect, frameSize, onLayerRect, onDraftCrop]);
 
   const frameStyle = frame
     ? { left: frame.left, top: frame.top, width: frame.width, height: frame.height }
     : { display: "none" };
 
-  const pct = (v, axis) => (frame ? (v / 100) * (axis === "x" ? frame.width : frame.height) : 0);
+  const c = draftCrop;
 
   return (
     <div
@@ -225,21 +210,14 @@ export function Preview({
         <div
           className="selection-box"
           style={{
-            left: frame.left + pct(selected.x, "x"),
-            top: frame.top + pct(selected.y, "y"),
-            width: pct(selected.w, "x"),
-            height: pct(selected.h, "y"),
+            left: frame.left + toPxX(selected.x),
+            top: frame.top + toPxY(selected.y),
+            width: spanPxX(selected.w),
+            height: spanPxY(selected.h),
           }}
           onPointerDown={(e) => {
             if (e.target !== e.currentTarget) return;
-            dragRef.current = {
-              mode: "move",
-              id: selected.id,
-              startX: e.clientX,
-              startY: e.clientY,
-              start: { x: selected.x, y: selected.y, w: selected.w, h: selected.h },
-            };
-            setDragging(true);
+            startDrag({ mode: "move", id: selected.id, e, start: rectOf(selected) });
           }}
         >
           {HANDLES.map((h) => (
@@ -247,7 +225,10 @@ export function Preview({
               key={h}
               className={"handle handle-" + h}
               data-handle={h}
-              onPointerDown={(e) => beginLayerResize(e, h)}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                startDrag({ mode: "resize", id: selected.id, handle: h, e, start: rectOf(selected) });
+              }}
             />
           ))}
         </div>
@@ -255,63 +236,66 @@ export function Preview({
 
       {cropMode && frame && (
         <div className="crop-overlay" style={frameStyle}>
-          <div
-            className="crop-mask"
-            style={{ left: 0, top: 0, width: "100%", height: pct(crop.y, "y") }}
-          />
+          <div className="crop-mask" style={{ left: 0, top: 0, width: "100%", height: toPxY(c.y) }} />
           <div
             className="crop-mask"
             style={{
               left: 0,
-              top: pct(crop.y + crop.h, "y"),
+              top: toPxY(c.y + c.h),
               width: "100%",
-              height: frame.height - pct(crop.y + crop.h, "y"),
+              height: frame.height - toPxY(c.y + c.h),
             }}
           />
           <div
             className="crop-mask"
-            style={{
-              left: 0,
-              top: pct(crop.y, "y"),
-              width: pct(crop.x, "x"),
-              height: pct(crop.h, "y"),
-            }}
+            style={{ left: 0, top: toPxY(c.y), width: toPxX(c.x), height: spanPxY(c.h) }}
           />
           <div
             className="crop-mask"
             style={{
-              left: pct(crop.x + crop.w, "x"),
-              top: pct(crop.y, "y"),
-              width: frame.width - pct(crop.x + crop.w, "x"),
-              height: pct(crop.h, "y"),
+              left: toPxX(c.x + c.w),
+              top: toPxY(c.y),
+              width: frame.width - toPxX(c.x + c.w),
+              height: spanPxY(c.h),
             }}
           />
 
           <div
             className="crop-rect"
             style={{
-              left: pct(crop.x, "x"),
-              top: pct(crop.y, "y"),
-              width: pct(crop.w, "x"),
-              height: pct(crop.h, "y"),
+              left: toPxX(c.x),
+              top: toPxY(c.y),
+              width: spanPxX(c.w),
+              height: spanPxY(c.h),
             }}
-            onPointerDown={beginCropMove}
+            onPointerDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              startDrag({ mode: "crop-move", e, start: { ...c } });
+            }}
           >
-            <div className="crop-size-badge">
-              {Math.round((crop.w / 100) * canvasSize.w)} x{" "}
-              {Math.round((crop.h / 100) * canvasSize.h)} px
-            </div>
+            <div className="crop-thirds" />
             {HANDLES.map((h) => (
               <div
                 key={h}
                 className={"handle handle-" + h}
                 data-handle={h}
-                onPointerDown={(e) => beginCropResize(e, h)}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  startDrag({
+                    mode: "crop-resize",
+                    handle: h,
+                    e,
+                    start: { ...c },
+                    startRatio: cropPixelRatio(c, frameSize.w, frameSize.h),
+                  });
+                }}
               />
             ))}
           </div>
         </div>
       )}
+
+      <CropToolbar {...cropToolbar} />
     </div>
   );
 }

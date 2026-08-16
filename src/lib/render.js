@@ -18,12 +18,23 @@ function wrapText(c, text, x, y, maxWidth, lineHeight) {
 }
 
 /** Paint the whole composition at composition time `t`.
-    `media` maps layer id -> HTMLVideoElement / HTMLAudioElement / HTMLImageElement. */
-export function drawComposition(canvas, layers, media, t) {
+
+    `media` maps layer id -> HTMLVideoElement / HTMLAudioElement / HTMLImageElement.
+
+    `frame` describes the composition space that layer percentages refer to,
+    and how much of it to show: {w, h, offsetX, offsetY}. An applied crop makes
+    the canvas smaller than the composition and shifts the origin, so the
+    preview shows exactly what will be exported. */
+export function drawComposition(canvas, layers, media, t, frame) {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
+
+  const fw = frame ? frame.w : w;
+  const fh = frame ? frame.h : h;
+  const ox = frame ? frame.offsetX || 0 : 0;
+  const oy = frame ? frame.offsetY || 0 : 0;
 
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#000";
@@ -39,10 +50,12 @@ export function drawComposition(canvas, layers, media, t) {
       ctx.filter = "brightness(" + l.brightness + ")";
     }
 
-    const px = (l.x / 100) * w;
-    const py = (l.y / 100) * h;
-    const pw = (l.w / 100) * w;
-    const ph = (l.h / 100) * h;
+    // layer rects are percentages of the composition frame, shifted into
+    // canvas space by the crop origin
+    const px = (l.x / 100) * fw - ox;
+    const py = (l.y / 100) * fh - oy;
+    const pw = (l.w / 100) * fw;
+    const ph = (l.h / 100) * fh;
     const el = media[l.id];
 
     if (l.type === "video") {
@@ -64,7 +77,7 @@ export function drawComposition(canvas, layers, media, t) {
         }
       }
     } else if (l.type === "text") {
-      const fs = (l.fontSize / 100) * h;
+      const fs = (l.fontSize / 100) * fh;
       ctx.fillStyle = l.color || "#ffffff";
       ctx.font = "700 " + fs + "px -apple-system, Helvetica, sans-serif";
       ctx.textBaseline = "top";

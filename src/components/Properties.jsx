@@ -35,6 +35,8 @@ export const Properties = memo(function Properties({
   layer,
   layerCount,
   canvasSize,
+  outputSize,
+  cropped,
   duration,
   onPatch,
   onRemove,
@@ -45,8 +47,15 @@ export const Properties = memo(function Properties({
       <div className="properties-body">
         <div className="prop-section-title">Project</div>
         <div className="prop-hint">
-          Output frame: {canvasSize.w} x {canvasSize.h} px &nbsp;&middot;&nbsp; Length:{" "}
-          {formatTime(duration)}
+          Output frame: {outputSize.w} x {outputSize.h} px
+          {cropped && (
+            <>
+              {" "}
+              <span className="prop-badge">cropped</span> from {canvasSize.w} x {canvasSize.h}
+            </>
+          )}
+          <br />
+          Length: {formatTime(duration)}
         </div>
 
         {!layer ? (

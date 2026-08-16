@@ -54,6 +54,26 @@ const PATHS = {
     </>
   ),
   moon: <path d="M20.8 13.4A8.6 8.6 0 1 1 10.6 3.2a6.8 6.8 0 0 0 10.2 10.2Z" />,
+  crop: (
+    <>
+      <path d="M6.2 2.8v14.4a1 1 0 0 0 1 1h14.4" />
+      <path d="M2.6 6.2h14a1 1 0 0 1 1 1v14" />
+    </>
+  ),
+  check: <path d="m4.8 12.4 5 5 9.4-10.2" strokeWidth="2.1" />,
+  close: <path d="M6.2 6.2 17.8 17.8M17.8 6.2 6.2 17.8" strokeWidth="2" />,
+  center: (
+    <>
+      <rect x="8.2" y="8.2" width="7.6" height="7.6" rx="1.4" />
+      <path d="M12 2.8v3.2M12 18v3.2M2.8 12H6M18 12h3.2" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M3.6 8.4h10.2a5.8 5.8 0 0 1 0 11.6H7.4" />
+      <path d="m7.4 4 -3.8 4.4L7.4 12.6" />
+    </>
+  ),
 };
 
 export function Icon({ name, size = 16, className = "" }) {
