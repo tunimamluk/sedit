@@ -99,12 +99,13 @@ kbd{
   gap: 9px;
 }
 
-/* Space Grotesk is bundled locally via @fontsource -- no network at runtime. */
+/* Unbounded: geometric and wide, so the wordmark reads as designed type
+   rather than UI text. Bundled locally via @fontsource -- no network fetch. */
 .brand-name{
-  font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Unbounded", -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700;
-  font-size: 20px;
-  letter-spacing: -0.035em;
+  font-size: 17px;
+  letter-spacing: -0.04em;
   line-height: 1;
 }
 
