@@ -12,10 +12,28 @@ export function layerSpeed(l) {
   return l.speed && l.speed > 0 ? l.speed : 1;
 }
 
+/* A clip can be trimmed to a window of its source: [clipStart, clipEnd] in
+   source seconds. Speed then scales that window onto the timeline, so the two
+   compose rather than fight -- trimming picks *which* audio you hear, speed
+   decides how long it takes to play. */
+
+export function clipStart(l) {
+  return l.clipStart || 0;
+}
+
+export function clipEnd(l) {
+  return l.clipEnd != null ? l.clipEnd : l.duration || 0;
+}
+
+/** Length of the chosen source window, before speed. */
+export function sourceLen(l) {
+  return Math.max(0, clipEnd(l) - clipStart(l));
+}
+
 /** How much room the layer takes on the timeline, in seconds. */
 export function layerLen(l) {
   if (l.type === "image" || l.type === "text") return l.len;
-  return (l.duration || 0) / layerSpeed(l);
+  return sourceLen(l) / layerSpeed(l);
 }
 
 /* A layer is active through its final frame *inclusive*. Playback stops
@@ -32,9 +50,10 @@ export function isLayerActive(l, t) {
     Scaled by the layer's speed, and clamped just inside the media so seeking
     to the very end doesn't land in the browser's "ended" state (also black). */
 export function layerLocalTime(l, t) {
-  const source = (t - l.offset) * layerSpeed(l);
-  const dur = l.duration || layerLen(l);
-  return clamp(source, 0, Math.max(0, dur - 0.04));
+  const from = clipStart(l);
+  const source = from + (t - l.offset) * layerSpeed(l);
+  const end = clipEnd(l) || layerLen(l);
+  return clamp(source, from, Math.max(from, end - 0.04));
 }
 
 export function projectDuration(layers) {

@@ -10,6 +10,7 @@ export function TopBar({
   onFormatChange,
   onExport,
   exporting,
+  canExport,
 }) {
   return (
     <header className="topbar">
@@ -54,7 +55,12 @@ export function TopBar({
           )}
         </select>
 
-        <button className="btn btn-primary" onClick={onExport} disabled={exporting}>
+        <button
+          className="btn btn-primary"
+          onClick={onExport}
+          disabled={exporting || !canExport}
+          title={canExport ? "Export" : "Add media first"}
+        >
           Export
         </button>
       </div>

@@ -51,14 +51,15 @@ state once per frame for the components that display it.
 
 ## Using it
 
-- **Add media** — **+ Add Media** takes video and images; **+ Add Audio** takes audio. You can also drop files on the preview or **paste** (⌘V / Ctrl+V). The first video/image becomes the full-frame base layer; later ones come in as smaller overlays.
+- **Add media** — **+ Add Media** takes video and images; **+ Add Audio** takes audio. You can also drop files on the preview **or on the left panel**, or **paste** (⌘V / Ctrl+V). The first video/image becomes the full-frame base layer; later ones come in as smaller overlays.
 - **Audio is not a layer.** It never draws to the canvas, so it lives in its own list and its own timeline lane below the main bar. Drag a clip sideways to change when it starts; select it for volume, mute, speed and start time. A video's own soundtrack still belongs to that video layer.
 - **Add Text** — a text overlay you can reposition, recolor, and resize.
 - **Move / resize layers** — drag overlays directly on the preview; corner handles resize. The full-frame base layer deliberately ignores canvas clicks (otherwise every click would select it) — pick it from the Layers panel.
 - **Layers panel** (left) — select, hide, reorder, delete.
 - **Properties panel** (right) — split into **Project** (output frame size and total length, always visible) and **Layer** (size in output pixels, crop, opacity, speed, volume/mute, duration for stills). Volume is disabled while a layer is muted.
 - **Speed** — 0.25×–4×, set **per layer** in the Layer section. Each clip runs at its own rate, and the panel shows how long it ends up on the timeline (a 12s clip at 2× takes 6s). Stills have no speed — set their Duration instead.
-- **Timeline** (bottom) — drag the two handles to trim the start and end. Click or drag anywhere on the bar to scrub.
+- **Timeline** (bottom) — drag the two handles to trim the project start and end; click or drag the bar to scrub. **Zoom** with the +/- buttons (up to 40x, **Fit** returns to full width) when you need finer positioning. Audio clips sit in their own lane below: drag the middle to move a clip in time, drag either **end** to trim it.
+- **Clip length** — an audio track can be cut to a window of its source, set by dragging its ends or by the *Trim from* / *Length* fields. Trimming picks which part you hear; speed then decides how long that part takes to play, so a 15s window at 2x occupies 7.5s of timeline.
 - **Crop** — cropping is **per layer** and works as a process, from the Layer section of the right panel:
   1. Select a video or image layer and press **Crop layer**.
   2. Drag the region over the layer. Optionally lock a ratio (default **Free**), hold **Shift** on a corner to keep the current ratio, or **Snap to middle**.

@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Icon } from "./Icon.jsx";
 
 /* memo'd: the playhead updates ~60x/second during playback and this panel
@@ -12,10 +12,29 @@ export const LayersPanel = memo(function LayersPanel({
   onRemove,
   onAddFiles,
   onAddText,
+  onDropFiles,
   audio,
 }) {
+  const [dropping, setDropping] = useState(false);
+
   return (
-    <aside className="panel layers-panel">
+    <aside
+      className={"panel layers-panel" + (dropping ? " dropping" : "")}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        setDropping(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDropping(false);
+        onDropFiles(Array.from(e.dataTransfer.files || []));
+      }}
+    >
       <div className="panel-header">Layers</div>
 
       <div className="layer-list">

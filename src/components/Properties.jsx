@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { formatTime, layerLen, layerSpeed } from "../lib/time.js";
+import { clipEnd, clipStart, formatTime, layerLen, layerSpeed, sourceLen } from "../lib/time.js";
 import { CropControls } from "./CropControls.jsx";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
@@ -79,6 +79,46 @@ export const Properties = memo(function Properties({
               />
             </Group>
 
+            <div className="prop-group">
+              <div className="prop-label">Clip (seconds of source)</div>
+              <div className="prop-row">
+                <div style={{ flex: 1 }}>
+                  <div className="prop-value">Trim from</div>
+                  <input
+                    className="prop-input"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={Math.round(clipStart(track) * 100) / 100}
+                    onChange={(e) => {
+                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                      onPatchTrack({ clipStart: Math.min(v, clipEnd(track) - 0.05) });
+                    }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="prop-value">Length</div>
+                  <input
+                    className="prop-input"
+                    type="number"
+                    step="0.1"
+                    min="0.05"
+                    value={Math.round(sourceLen(track) * 100) / 100}
+                    onChange={(e) => {
+                      const len = Math.max(0.05, parseFloat(e.target.value) || 0.05);
+                      onPatchTrack({
+                        clipEnd: Math.min(clipStart(track) + len, track.duration || 0),
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="prop-hint">
+                Full file is {formatTime(track.duration || 0)}. Drag either end of the clip in the
+                timeline to trim it there instead.
+              </div>
+            </div>
+
             <Group label="Speed">
               <select
                 className="prop-input"
@@ -93,8 +133,8 @@ export const Properties = memo(function Properties({
               </select>
             </Group>
             <div className="prop-hint">
-              Source {formatTime(track.duration || 0)} &nbsp;&middot;&nbsp; takes{" "}
-              {formatTime(layerLen(track))} on the timeline
+              Clip {formatTime(sourceLen(track))} &nbsp;&middot;&nbsp; takes{" "}
+              {formatTime(layerLen(track))} on the timeline at {layerSpeed(track)}x
             </div>
 
             <div className="prop-toggle-row">

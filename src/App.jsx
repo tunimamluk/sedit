@@ -10,7 +10,7 @@ import { useTheme } from "./hooks/useTheme.js";
 import { usePlayback } from "./hooks/usePlayback.js";
 import { canComposite, drawComposition } from "./lib/render.js";
 import { applyAspectToCrop, parseAspect } from "./lib/geometry.js";
-import { clamp, formatTime, projectDuration } from "./lib/time.js";
+import { clamp, formatTime, layerLen, projectDuration } from "./lib/time.js";
 import { findFormat, supportedFormats } from "./lib/formats.js";
 import { applyLevel, createMediaStore, disposeMedia, exportGain, resumeAudio } from "./lib/media.js";
 
@@ -38,6 +38,7 @@ export default function App() {
   const cropMode = draftCrop != null;
 
   const [trim, setTrim] = useState({ trimIn: 0, trimOut: 1, trimOutIsMax: true });
+  const [zoom, setZoom] = useState(1);
   const [filename, setFilename] = useState("edited");
   const [format, setFormat] = useState("");
   const [toast, setToast] = useState(null);
@@ -66,6 +67,9 @@ export default function App() {
   }, [trim]);
 
   const duration = useMemo(() => projectDuration([...layers, ...tracks]), [layers, tracks]);
+  // Nothing loaded means nothing to play or trim; projectDuration floors at 1s
+  // for the maths, which would otherwise make an empty project look playable.
+  const hasMedia = layers.length > 0 || tracks.length > 0;
   frameRef.current = canvasSize;
 
   /* ---- drawing ---- */
@@ -317,6 +321,27 @@ export default function App() {
 
   const patchTrack = useCallback((id, patch) => {
     setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }, []);
+
+  /* Edge drags arrive in *source* seconds. Trimming the start also shifts the
+     clip's timeline offset, so the audio you kept stays where it was. */
+  const trimTrack = useCallback((id, { deltaStart, deltaEnd }) => {
+    setTracks((ts) =>
+      ts.map((t) => {
+        if (t.id !== id) return t;
+        const dur = t.duration || 0;
+        const from = t.clipStart || 0;
+        const to = t.clipEnd != null ? t.clipEnd : dur;
+        const speed = t.speed || 1;
+        const MIN = 0.05;
+
+        if (deltaStart != null) {
+          const next = clamp(from + deltaStart, 0, to - MIN);
+          return { ...t, clipStart: next, offset: Math.max(0, t.offset + (next - from) / speed) };
+        }
+        return { ...t, clipEnd: clamp(to + deltaEnd, from + MIN, dur) };
+      })
+    );
   }, []);
 
   const removeTrack = useCallback((id) => {
@@ -582,6 +607,7 @@ export default function App() {
         onFormatChange={setFormat}
         onExport={startExport}
         exporting={!!exportState}
+        canExport={hasMedia}
       />
 
       <main className="workspace">
@@ -599,6 +625,7 @@ export default function App() {
           onRemove={removeLayer}
           onAddFiles={addFiles}
           onAddText={addText}
+          onDropFiles={addFiles}
           audio={
             <AudioTrackList
               tracks={tracks}
@@ -632,7 +659,13 @@ export default function App() {
             onDropFiles={addFiles}
           />
 
-          <Transport playing={playing} onTogglePlay={toggle} time={time} duration={duration} />
+          <Transport
+            playing={playing}
+            onTogglePlay={toggle}
+            time={hasMedia ? time : 0}
+            duration={hasMedia ? duration : 0}
+            disabled={!hasMedia}
+          />
 
           <Timeline
             duration={duration}
@@ -648,13 +681,17 @@ export default function App() {
             }
             time={time}
             onScrub={seek}
-            tracks={tracks.map((t) => ({ ...t, length: t.duration / (t.speed || 1) }))}
+            tracks={tracks.map((t) => ({ ...t, length: layerLen(t) }))}
             selectedTrackId={selectedTrackId}
             onSelectTrack={(id) => {
               setSelectedTrackId(id);
               setSelectedId(null);
             }}
             onMoveTrack={(id, offset) => patchTrack(id, { offset })}
+            onTrimTrack={trimTrack}
+            zoom={zoom}
+            onZoom={(z) => setZoom(clamp(z, 1, 40))}
+            disabled={!hasMedia}
           />
         </section>
 
