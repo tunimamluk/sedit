@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TopBar } from "./components/TopBar.jsx";
 import { LayersPanel } from "./components/LayersPanel.jsx";
+import { AudioTrackList } from "./components/AudioTrackList.jsx";
 import { Preview } from "./components/Preview.jsx";
 import { Transport } from "./components/Transport.jsx";
 import { Timeline } from "./components/Timeline.jsx";
@@ -11,13 +12,7 @@ import { canComposite, drawComposition } from "./lib/render.js";
 import { applyAspectToCrop, parseAspect } from "./lib/geometry.js";
 import { clamp, formatTime, projectDuration } from "./lib/time.js";
 import { findFormat, supportedFormats } from "./lib/formats.js";
-import {
-  attachAudioGraph,
-  createMediaStore,
-  disposeMedia,
-  resumeAudio,
-  setGain,
-} from "./lib/media.js";
+import { applyLevel, createMediaStore, disposeMedia, exportGain, resumeAudio } from "./lib/media.js";
 
 const DEFAULT_SIZE = { w: 1280, h: 720 };
 
@@ -27,8 +22,10 @@ const nextId = () => "layer-" + ++idCounter;
 export default function App() {
   const [theme, toggleTheme] = useTheme();
 
-  const [layers, setLayers] = useState([]);
+  const [layers, setLayers] = useState([]);      // visual only: video, image, text
+  const [tracks, setTracks] = useState([]);      // audio clips -- never drawn
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [canvasSize, setCanvasSize] = useState(DEFAULT_SIZE);
   const [sizeLocked, setSizeLocked] = useState(false);
 
@@ -50,6 +47,7 @@ export default function App() {
   const frameRef = useRef(DEFAULT_SIZE); // composition size, for the compositor
   const mediaRef = useRef(createMediaStore());
   const layersRef = useRef(layers);
+  const playablesRef = useRef([]); // layers + tracks, for the playback clock
   const trimRef = useRef(trim);
   const exportRef = useRef(null);
   // once you rename the output yourself we stop deriving it from the media
@@ -61,11 +59,13 @@ export default function App() {
   useEffect(() => {
     layersRef.current = layers;
   }, [layers]);
+  // The clock drives anything with a position in time, visual or not.
+  playablesRef.current = [...layers, ...tracks];
   useEffect(() => {
     trimRef.current = trim;
   }, [trim]);
 
-  const duration = useMemo(() => projectDuration(layers), [layers]);
+  const duration = useMemo(() => projectDuration([...layers, ...tracks]), [layers, tracks]);
   frameRef.current = canvasSize;
 
   /* ---- drawing ---- */
@@ -106,7 +106,7 @@ export default function App() {
   }, []);
 
   const playback = usePlayback({
-    layersRef,
+    layersRef: playablesRef,
     mediaRef: mediaElementsRef,
     trimRef,
     onFrame,
@@ -186,39 +186,56 @@ export default function App() {
           speed: 1,
         };
 
-        if (kind === "video" || kind === "audio") {
+        if (kind === "audio") {
+          if (!filenameTouched.current) {
+            const base = file.name.replace(/\.[^.]+$/, "").trim();
+            if (base) setFilename("edited " + base);
+            filenameTouched.current = true;
+          }
+          const el = document.createElement("audio");
+          el.src = url;
+          el.preload = "auto";
+          mediaRef.current.elements[id] = el;
+          el.addEventListener("loadedmetadata", () => {
+            setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, duration: el.duration || 0 } : t)));
+          });
+          setTracks((ts) => [
+            ...ts,
+            { id, type: "audio", name: file.name, duration: 0, offset: 0, volume: 1, muted: false, speed: 1 },
+          ]);
+          setSelectedTrackId(id);
+          setSelectedId(null);
+          continue;
+        }
+
+        if (kind === "video") {
           if (!filenameTouched.current) {
             const base = file.name.replace(/\.[^.]+$/, "").trim();
             if (base) setFilename("edited " + base);
             filenameTouched.current = true; // first clip wins, later ones don't rename
           }
-          const el = document.createElement(kind);
+          const el = document.createElement("video");
           el.src = url;
           el.preload = "auto";
-          if (kind === "video") el.playsInline = true;
+          el.playsInline = true;
           mediaRef.current.elements[id] = el;
 
           el.addEventListener("loadedmetadata", () => {
             setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, duration: el.duration || 0 } : l)));
-            if (kind === "video") {
-              setCanvasSize((s) => {
-                if (sizeLocked) return s;
-                return { w: el.videoWidth || s.w, h: el.videoHeight || s.h };
-              });
-              setSizeLocked(true);
-            }
-            attachAudioGraph(mediaRef.current, id, el, layer);
+            setCanvasSize((s) => {
+              if (sizeLocked) return s;
+              return { w: el.videoWidth || s.w, h: el.videoHeight || s.h };
+            });
+            setSizeLocked(true);
           });
 
-          if (kind === "video") {
-            // A seek finishes asynchronously - repaint once the frame is
-            // actually decoded, otherwise a paused/scrubbed frame stays blank.
-            ["seeked", "loadeddata", "canplay"].forEach((evt) =>
-              el.addEventListener(evt, () => {
-                if (!playingRef.current) paint(playheadRef.current);
-              })
-            );
-          }
+          // A seek finishes asynchronously - repaint once the frame is
+          // actually decoded, otherwise a paused/scrubbed frame stays blank.
+          ["seeked", "loadeddata", "canplay"].forEach((evt) =>
+            el.addEventListener(evt, () => {
+              if (!playingRef.current) paint(playheadRef.current);
+            })
+          );
         } else {
           const img = new Image();
           img.src = url;
@@ -278,16 +295,16 @@ export default function App() {
     );
   }, []);
 
-  // keep the audio graph in step with volume/mute
+  // Volume/mute go straight onto the elements -- no WebAudio in the playback path.
   useEffect(() => {
-    for (const l of layers) {
-      if (l.type === "video" || l.type === "audio") {
-        setGain(mediaRef.current, l.id, l.muted ? 0 : l.volume);
+    for (const item of [...layers, ...tracks]) {
+      if (item.type === "video" || item.type === "audio") {
+        applyLevel(mediaRef.current, item.id, item);
       }
-      const el = mediaRef.current.elements[l.id];
-      if (el && el.playbackRate != null) el.playbackRate = l.speed || 1;
+      const el = mediaRef.current.elements[item.id];
+      if (el && el.playbackRate != null) el.playbackRate = item.speed || 1;
     }
-  }, [layers]);
+  }, [layers, tracks]);
 
   const removeLayer = useCallback(
     (id) => {
@@ -297,6 +314,16 @@ export default function App() {
     },
     []
   );
+
+  const patchTrack = useCallback((id, patch) => {
+    setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }, []);
+
+  const removeTrack = useCallback((id) => {
+    disposeMedia(mediaRef.current, id);
+    setTracks((ts) => ts.filter((t) => t.id !== id));
+    setSelectedTrackId((s) => (s === id ? null : s));
+  }, []);
 
   const moveLayer = useCallback((index, dir) => {
     setLayers((ls) => {
@@ -439,7 +466,7 @@ export default function App() {
 
   /* ---- export ---- */
 
-  const onlyAudio = layers.length > 0 && layers.every((l) => l.type === "audio");
+  const onlyAudio = layers.length === 0 && tracks.length > 0;
   const formats = useMemo(() => supportedFormats(onlyAudio), [onlyAudio]);
 
   useEffect(() => {
@@ -447,7 +474,7 @@ export default function App() {
   }, [formats, format]);
 
   const startExport = useCallback(() => {
-    if (layers.length === 0) return flash("Add some media first");
+    if (layers.length === 0 && tracks.length === 0) return flash("Add some media first");
     if (typeof MediaRecorder === "undefined") return flash("This browser can't record");
     if (cropMode) return flash("Apply or cancel the crop first");
     if (playing) pause();
@@ -455,13 +482,20 @@ export default function App() {
     const fmt = findFormat(format, onlyAudio);
     const ac = resumeAudio();
     const dest = ac.createMediaStreamDestination();
+    // The export tap is the only place WebAudio is used; building it here
+    // means a failure cannot silence ordinary playback.
     const tapped = [];
-    for (const l of layers) {
-      const g = mediaRef.current.gains[l.id];
-      if (g && !l.muted) {
-        g.connect(dest);
-        tapped.push(g);
-      }
+    for (const item of [...layers, ...tracks]) {
+      if (item.type !== "video" && item.type !== "audio") continue;
+      if (item.muted) continue;
+      const g = exportGain(mediaRef.current, item.id);
+      if (!g) continue;
+      g.gain.value = item.volume == null ? 1 : item.volume;
+      g.connect(dest);
+      tapped.push(g);
+      // the element now feeds the graph, so its own volume must not double-attenuate
+      const el = mediaRef.current.elements[item.id];
+      if (el) el.volume = 1;
     }
 
     // The preview canvas already renders the cropped output, so it can be
@@ -489,6 +523,7 @@ export default function App() {
           /* already gone */
         }
       }
+      for (const item of [...layers, ...tracks]) applyLevel(mediaRef.current, item.id, item);
       exportRef.current = null;
       setExportState(null);
       if (cancelled || !chunks.length) return;
@@ -525,7 +560,7 @@ export default function App() {
     recorder.start(200);
     play();
   }, [
-    layers, flash, cropMode, playing, pause, format, onlyAudio, trim,
+    layers, tracks, flash, cropMode, playing, pause, format, onlyAudio, trim,
     filename, seek, play, stop,
   ]);
 
@@ -553,7 +588,10 @@ export default function App() {
         <LayersPanel
           layers={layers}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setSelectedTrackId(null);
+          }}
           onToggleVisible={(id) =>
             setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)))
           }
@@ -561,6 +599,21 @@ export default function App() {
           onRemove={removeLayer}
           onAddFiles={addFiles}
           onAddText={addText}
+          audio={
+            <AudioTrackList
+              tracks={tracks}
+              selectedId={selectedTrackId}
+              onSelect={(id) => {
+                setSelectedTrackId(id);
+                setSelectedId(null);
+              }}
+              onToggleMute={(id) =>
+                setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, muted: !t.muted } : t)))
+              }
+              onRemove={removeTrack}
+              onAddFiles={addFiles}
+            />
+          }
         />
 
         <section className="preview-area">
@@ -595,11 +648,21 @@ export default function App() {
             }
             time={time}
             onScrub={seek}
+            tracks={tracks.map((t) => ({ ...t, length: t.duration / (t.speed || 1) }))}
+            selectedTrackId={selectedTrackId}
+            onSelectTrack={(id) => {
+              setSelectedTrackId(id);
+              setSelectedId(null);
+            }}
+            onMoveTrack={(id, offset) => patchTrack(id, { offset })}
           />
         </section>
 
         <Properties
           layer={selected}
+          track={tracks.find((t) => t.id === selectedTrackId) || null}
+          onPatchTrack={(patch) => selectedTrackId && patchTrack(selectedTrackId, patch)}
+          onRemoveTrack={() => selectedTrackId && removeTrack(selectedTrackId)}
           layerCount={layers.length}
           canvasSize={canvasSize}
           duration={duration}

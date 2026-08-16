@@ -1,47 +1,65 @@
-/* Owns the non-React side of media: the HTMLMediaElements themselves and the
-   WebAudio graph used for per-layer volume and for tapping audio into the
-   export recorder. Kept out of React state because these are live objects,
-   not data. */
+/* Media plumbing: the HTMLMediaElements themselves, plus the WebAudio graph
+   used *only* for export.
+
+   Playback deliberately does not go through WebAudio. Routing an element
+   through createMediaElementSource permanently redirects its output into the
+   graph, so any failure there (a suspended context, no output device, a
+   throwing constructor) silences playback entirely. Volume and mute are set
+   directly on the element instead, and the graph is built lazily at export
+   time -- still connected to the speakers, so you keep hearing it. */
 
 let audioCtx = null;
 
 export function getAudioCtx() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      audioCtx = new Ctor();
+    } catch {
+      return null; // no output device, or blocked
+    }
   }
   return audioCtx;
 }
 
 export function resumeAudio() {
   const ac = getAudioCtx();
-  if (ac.state === "suspended") ac.resume();
+  if (ac && ac.state === "suspended") ac.resume().catch(() => {});
   return ac;
-}
-
-/** Route a media element through a gain node we can control and tap. */
-export function attachAudioGraph(store, id, element, layer) {
-  if (store.gains[id] || !element) return;
-  try {
-    const ac = getAudioCtx();
-    const src = ac.createMediaElementSource(element);
-    const gain = ac.createGain();
-    gain.gain.value = layer.muted ? 0 : layer.volume;
-    src.connect(gain);
-    gain.connect(ac.destination);
-    store.sources[id] = src;
-    store.gains[id] = gain;
-  } catch {
-    /* already connected, or unsupported */
-  }
-}
-
-export function setGain(store, id, value) {
-  const g = store.gains[id];
-  if (g) g.gain.value = value;
 }
 
 export function createMediaStore() {
   return { elements: {}, gains: {}, sources: {}, urls: {} };
+}
+
+/** Volume/mute straight on the element -- no graph involved. */
+export function applyLevel(store, id, { volume, muted }) {
+  const el = store.elements[id];
+  if (!el || el.volume === undefined) return;
+  el.muted = !!muted;
+  el.volume = Math.max(0, Math.min(1, volume == null ? 1 : volume));
+}
+
+/** Build (once) the export tap for an element: source -> gain -> destination,
+    plus whatever extra node the recorder wants. Returns the gain, or null if
+    WebAudio is unavailable -- callers must tolerate that. */
+export function exportGain(store, id) {
+  if (store.gains[id]) return store.gains[id];
+  const el = store.elements[id];
+  const ac = getAudioCtx();
+  if (!el || !ac) return null;
+  try {
+    const src = ac.createMediaElementSource(el);
+    const gain = ac.createGain();
+    src.connect(gain);
+    gain.connect(ac.destination); // keep it audible while recording
+    store.sources[id] = src;
+    store.gains[id] = gain;
+    return gain;
+  } catch {
+    return null; // already routed, or unsupported
+  }
 }
 
 export function disposeMedia(store, id) {

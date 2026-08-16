@@ -51,7 +51,8 @@ state once per frame for the components that display it.
 
 ## Using it
 
-- **Add media** — click **+ Add Media**, drag files onto the preview, or **paste** (⌘V / Ctrl+V) a copied video, image, or audio file. The first video/image becomes the full-frame base layer; later ones come in as smaller overlays.
+- **Add media** — **+ Add Media** takes video and images; **+ Add Audio** takes audio. You can also drop files on the preview or **paste** (⌘V / Ctrl+V). The first video/image becomes the full-frame base layer; later ones come in as smaller overlays.
+- **Audio is not a layer.** It never draws to the canvas, so it lives in its own list and its own timeline lane below the main bar. Drag a clip sideways to change when it starts; select it for volume, mute, speed and start time. A video's own soundtrack still belongs to that video layer.
 - **Add Text** — a text overlay you can reposition, recolor, and resize.
 - **Move / resize layers** — drag overlays directly on the preview; corner handles resize. The full-frame base layer deliberately ignores canvas clicks (otherwise every click would select it) — pick it from the Layers panel.
 - **Layers panel** (left) — select, hide, reorder, delete.
@@ -77,6 +78,15 @@ Two families, bundled locally via `@fontsource` (no network fetch):
 
 They are exposed as `--font-display` and `--font-ui`, so the whole app shifts
 by editing two tokens.
+
+## Audio
+
+Playback deliberately does **not** route through WebAudio. Calling
+`createMediaElementSource` permanently redirects an element's output into the
+graph, so any failure there — a suspended context, no output device, a
+throwing constructor — silences playback completely. Volume and mute are set
+on the elements directly, and the WebAudio graph is built lazily at export
+time (still wired to the speakers, so you keep hearing it).
 
 ## Time display
 

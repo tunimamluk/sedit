@@ -387,6 +387,75 @@ kbd{
 
 .add-layer-secondary{ margin-top: -2px; }
 
+/* ---------- Audio section (left panel) ---------- */
+
+.audio-section{
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-height: 42%;
+}
+
+.track-list{
+  overflow-y: auto;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- Audio lane (timeline) ---------- */
+
+.audio-lane{
+  position: relative;
+  margin-top: 6px;
+  padding: 5px 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.audio-lane-row{
+  position: relative;
+  height: 26px;
+  margin: 3px 0;
+}
+
+.audio-clip{
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 8px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  cursor: grab;
+  overflow: hidden;
+  /* waveform-ish texture so a clip reads as audio at a glance */
+  background-image: repeating-linear-gradient(
+    90deg, transparent 0 3px, var(--accent-dim) 3px 4px);
+}
+
+.audio-clip:active{ cursor: grabbing; }
+.audio-clip.selected{ background-color: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+.audio-clip.muted{ opacity: 0.45; }
+
+.audio-clip-name{
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.audio-playhead{ top: 0; bottom: 0; }
+
 /* ---------- Preview / stage ---------- */
 
 .preview-area{

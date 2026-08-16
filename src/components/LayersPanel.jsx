@@ -12,6 +12,7 @@ export const LayersPanel = memo(function LayersPanel({
   onRemove,
   onAddFiles,
   onAddText,
+  audio,
 }) {
   return (
     <aside className="panel layers-panel">
@@ -93,7 +94,7 @@ export const LayersPanel = memo(function LayersPanel({
         <span>+ Add Media</span>
         <input
           type="file"
-          accept="video/*,audio/*,image/*"
+          accept="video/*,image/*"
           multiple
           hidden
           onChange={(e) => {
@@ -105,6 +106,8 @@ export const LayersPanel = memo(function LayersPanel({
       <button type="button" className="add-layer-btn add-layer-secondary" onClick={onAddText}>
         + Add Text
       </button>
+
+      {audio}
     </aside>
   );
 });

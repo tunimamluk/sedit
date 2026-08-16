@@ -35,6 +35,9 @@ function Range({ label, value, min, max, step, onChange, display, disabled, note
 /* memo'd so the ~60fps playhead updates don't re-render the whole panel. */
 export const Properties = memo(function Properties({
   layer,
+  track,
+  onPatchTrack,
+  onRemoveTrack,
   layerCount,
   canvasSize,
   duration,
@@ -53,11 +56,79 @@ export const Properties = memo(function Properties({
           Length: {formatTime(duration)}
         </div>
 
-        {!layer ? (
+        {track ? (
+          <>
+            <div className="prop-section-title">Audio track</div>
+
+            <Group label="Name">
+              <input
+                className="prop-input"
+                type="text"
+                value={track.name}
+                onChange={(e) => onPatchTrack({ name: e.target.value })}
+              />
+            </Group>
+
+            <Group label="Start (seconds)">
+              <input
+                className="prop-input"
+                type="number"
+                step="0.1"
+                value={Math.round(track.offset * 100) / 100}
+                onChange={(e) => onPatchTrack({ offset: Math.max(0, parseFloat(e.target.value) || 0) })}
+              />
+            </Group>
+
+            <Group label="Speed">
+              <select
+                className="prop-input"
+                value={layerSpeed(track)}
+                onChange={(e) => onPatchTrack({ speed: parseFloat(e.target.value) })}
+              >
+                {SPEEDS.map((sp) => (
+                  <option key={sp} value={sp}>
+                    {sp}x
+                  </option>
+                ))}
+              </select>
+            </Group>
+            <div className="prop-hint">
+              Source {formatTime(track.duration || 0)} &nbsp;&middot;&nbsp; takes{" "}
+              {formatTime(layerLen(track))} on the timeline
+            </div>
+
+            <div className="prop-toggle-row">
+              <div className="prop-label">Mute</div>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={track.muted}
+                  onChange={(e) => onPatchTrack({ muted: e.target.checked })}
+                />
+                <div className="switch-track" />
+              </label>
+            </div>
+
+            <Range
+              label="Volume"
+              value={track.volume * 100}
+              min={0}
+              max={100}
+              step={1}
+              disabled={track.muted}
+              note="Muted"
+              onChange={(v) => onPatchTrack({ volume: v / 100 })}
+            />
+
+            <button className="remove-btn" onClick={onRemoveTrack}>
+              Remove audio track
+            </button>
+          </>
+        ) : !layer ? (
           <div className="empty-hint" style={{ padding: "4px 0" }}>
             {layerCount === 0
-              ? "Add media to begin, then select a layer to edit it."
-              : "Select a layer on the left to edit it."}
+              ? "Add media to begin, then select a layer or audio track to edit it."
+              : "Select a layer or audio track on the left to edit it."}
           </div>
         ) : (
           <>

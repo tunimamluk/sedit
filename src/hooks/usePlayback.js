@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isLayerActive, layerLocalTime, layerSpeed } from "../lib/time.js";
-import { resumeAudio } from "../lib/media.js";
+
 
 /* The playback engine.
 
@@ -119,7 +119,6 @@ export function usePlayback({ layersRef, mediaRef, trimRef, onFrame, onEnd }) {
 
   const play = useCallback(() => {
     if (layersRef.current.length === 0) return false;
-    resumeAudio();
 
     const { trimIn, trimOut } = trimRef.current;
     let start = playheadRef.current;
