@@ -1,7 +1,8 @@
-import { memo, useRef, useState } from "react";
+import { memo } from "react";
 import { clamp, clipEnd, clipStart, formatTime, sourceLen } from "../lib/time.js";
 import { FONTS, SIZE_PRESETS, TEXT_SWATCHES } from "../lib/text.js";
 import { CropControls } from "./CropControls.jsx";
+import { NumberInput } from "./NumberInput.jsx";
 import { Icon } from "./Icon.jsx";
 
 function Group({ label, children }) {
@@ -28,72 +29,6 @@ function Range({ label, value, min, max, step, onChange, display, disabled, note
         onChange={(e) => onChange(parseFloat(e.target.value))}
       />
       <div className="prop-value">{disabled && note ? note : display != null ? display : Math.round(value)}</div>
-    </div>
-  );
-}
-
-/* A number you can actually type into. Clamping on every keystroke makes a
-   field unusable -- typing "48" into a min-of-10 box turns the "4" into "10"
-   and you end up with "108". The raw text is kept while the field has focus
-   and the clamp happens on Enter or blur. `presets` turns it into a combo box
-   the way a word processor's size field works: pick one, or type your own. */
-function NumField({ value, min, max, step = 1, onChange, presets, id, title }) {
-  const [draft, setDraft] = useState(null);
-  const cancelling = useRef(false);
-
-  const commit = (raw) => {
-    const v = parseFloat(raw);
-    if (!Number.isNaN(v)) onChange(clamp(v, min, max));
-    setDraft(null);
-  };
-  const nudge = (dir) => onChange(clamp(value + dir * step, min, max));
-
-  return (
-    <div className="numfield" title={title}>
-      <button className="numfield-btn" onClick={() => nudge(-1)} disabled={value <= min}>
-        &minus;
-      </button>
-      <input
-        className="numfield-input"
-        type="text"
-        inputMode="decimal"
-        list={presets ? id : undefined}
-        value={draft != null ? draft : String(Math.round(value))}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={(e) => e.target.select()}
-        onBlur={(e) => {
-          if (cancelling.current) {
-            cancelling.current = false;
-            setDraft(null);
-            return;
-          }
-          commit(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            commit(e.currentTarget.value);
-            e.currentTarget.blur();
-          } else if (e.key === "Escape") {
-            cancelling.current = true;
-            setDraft(null);
-            e.currentTarget.blur();
-          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-            e.preventDefault();
-            setDraft(null);
-            nudge(e.key === "ArrowUp" ? 1 : -1);
-          }
-        }}
-      />
-      {presets && (
-        <datalist id={id}>
-          {presets.map((p) => (
-            <option key={p} value={p} />
-          ))}
-        </datalist>
-      )}
-      <button className="numfield-btn" onClick={() => nudge(1)} disabled={value >= max}>
-        +
-      </button>
     </div>
   );
 }
@@ -146,13 +81,15 @@ function TextControls({ layer, canvasSize, onPatch }) {
 
       <div className="prop-group">
         <div className="prop-label">Font size (pixels)</div>
-        <NumField
+        <NumberInput
           id="text-size-presets"
           value={px}
           min={4}
           max={Math.max(8, canvasSize.h)}
           step={1}
           presets={SIZE_PRESETS}
+          steppers
+          decimals={0}
           onChange={setPx}
           title="Type any size, or pick one from the list"
         />
@@ -278,12 +215,11 @@ export const Properties = memo(function Properties({
             </Group>
 
             <Group label="Start (seconds)">
-              <input
-                className="prop-input"
-                type="number"
-                step="0.1"
-                value={Math.round(track.offset * 100) / 100}
-                onChange={(e) => onPatchTrack({ offset: Math.max(0, parseFloat(e.target.value) || 0) })}
+              <NumberInput
+                value={track.offset}
+                min={0}
+                step={0.1}
+                onChange={(v) => onPatchTrack({ offset: v })}
               />
             </Group>
 
@@ -292,32 +228,22 @@ export const Properties = memo(function Properties({
               <div className="prop-row">
                 <div style={{ flex: 1 }}>
                   <div className="prop-value">Trim from</div>
-                  <input
-                    className="prop-input"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={Math.round(clipStart(track) * 100) / 100}
-                    onChange={(e) => {
-                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                      onPatchTrack({ clipStart: Math.min(v, clipEnd(track) - 0.05) });
-                    }}
+                  <NumberInput
+                    value={clipStart(track)}
+                    min={0}
+                    max={Math.max(0, clipEnd(track) - 0.05)}
+                    step={0.1}
+                    onChange={(v) => onPatchTrack({ clipStart: v })}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div className="prop-value">Length</div>
-                  <input
-                    className="prop-input"
-                    type="number"
-                    step="0.1"
-                    min="0.05"
-                    value={Math.round(sourceLen(track) * 100) / 100}
-                    onChange={(e) => {
-                      const len = Math.max(0.05, parseFloat(e.target.value) || 0.05);
-                      onPatchTrack({
-                        clipEnd: Math.min(clipStart(track) + len, track.duration || 0),
-                      });
-                    }}
+                  <NumberInput
+                    value={sourceLen(track)}
+                    min={0.05}
+                    max={Math.max(0.05, (track.duration || 0) - clipStart(track))}
+                    step={0.1}
+                    onChange={(len) => onPatchTrack({ clipEnd: clipStart(track) + len })}
                   />
                 </div>
               </div>
@@ -384,24 +310,22 @@ export const Properties = memo(function Properties({
                   <div className="prop-row">
                     <div style={{ flex: 1 }}>
                       <div className="prop-value">Width</div>
-                      <input
-                        className="prop-input"
-                        type="number"
-                        value={Math.round((layer.w / 100) * canvasSize.w)}
-                        onChange={(e) =>
-                          onPatch({ w: ((parseFloat(e.target.value) || 0) / canvasSize.w) * 100 })
-                        }
+                      <NumberInput
+                        value={(layer.w / 100) * canvasSize.w}
+                        min={Math.ceil(canvasSize.w * 0.02)}
+                        max={canvasSize.w}
+                        decimals={0}
+                        onChange={(v) => onPatch({ w: (v / canvasSize.w) * 100 })}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div className="prop-value">Height</div>
-                      <input
-                        className="prop-input"
-                        type="number"
-                        value={Math.round((layer.h / 100) * canvasSize.h)}
-                        onChange={(e) =>
-                          onPatch({ h: ((parseFloat(e.target.value) || 0) / canvasSize.h) * 100 })
-                        }
+                      <NumberInput
+                        value={(layer.h / 100) * canvasSize.h}
+                        min={Math.ceil(canvasSize.h * 0.02)}
+                        max={canvasSize.h}
+                        decimals={0}
+                        onChange={(v) => onPatch({ h: (v / canvasSize.h) * 100 })}
                       />
                     </div>
                   </div>
@@ -427,12 +351,11 @@ export const Properties = memo(function Properties({
 
             {(layer.type === "image" || layer.type === "text") && (
               <Group label="Duration (seconds)">
-                <input
-                  className="prop-input"
-                  type="number"
-                  step="0.1"
+                <NumberInput
                   value={layer.len}
-                  onChange={(e) => onPatch({ len: Math.max(0.1, parseFloat(e.target.value) || 0.1) })}
+                  min={0.1}
+                  step={0.1}
+                  onChange={(v) => onPatch({ len: v })}
                 />
               </Group>
             )}

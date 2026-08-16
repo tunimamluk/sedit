@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { clamp, formatTime, tickStep } from "../lib/time.js";
 import { Icon } from "./Icon.jsx";
+import { NumberInput } from "./NumberInput.jsx";
 
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 40;
@@ -14,57 +15,20 @@ const zoomToSlider = (z) =>
 const sliderToZoom = (v) =>
   ZOOM_MIN * Math.pow(ZOOM_MAX / ZOOM_MIN, v / 100);
 
-/* Clamping on every keystroke makes the field unusable: typing "150" starts
-   as "1", which clamps to 20 and rewrites the box, so the rest of the digits
-   land after it. While the field is focused we keep the raw text and only
-   push through values that are already in range; the clamp happens on blur
-   or Enter, when the person has finished. */
+/* Typing is a discrete edit: the zoom moves on Enter or blur, not on every
+   keystroke -- see NumberInput for why that matters. The slider and Ctrl+wheel
+   are the live controls. */
 function ZoomField({ zoom, onZoom }) {
-  const [draft, setDraft] = useState(null);
-  // Escape clears the draft and blurs, but blur fires commit(), which would
-  // read the pre-clear draft from its closure and commit the very value we
-  // just discarded. A ref settles it synchronously.
-  const cancelling = useRef(false);
-  const lo = Math.round(ZOOM_MIN * 100);
-  const hi = Math.round(ZOOM_MAX * 100);
-
-  /* Typing is a discrete edit: the zoom moves on Enter or blur, not on every
-     keystroke. Applying live meant "150" briefly became 1% -> clamped to 20%,
-     which rewrote the box mid-entry, and it also left Escape with nothing to
-     revert to. The slider and Ctrl+wheel are the live controls. */
-  const commit = () => {
-    const v = parseFloat(draft);
-    if (!Number.isNaN(v)) onZoom(Math.min(hi, Math.max(lo, v)) / 100);
-    setDraft(null);
-  };
-
   return (
-    <input
+    <NumberInput
       className="zoom-input"
-      type="text"
-      inputMode="numeric"
-      value={draft != null ? draft : String(Math.round(zoom * 100))}
+      value={zoom * 100}
+      min={Math.round(ZOOM_MIN * 100)}
+      max={Math.round(ZOOM_MAX * 100)}
+      step={10}
+      decimals={0}
+      onChange={(v) => onZoom(v / 100)}
       title="Type a zoom percentage, then press Enter"
-      onChange={(e) => setDraft(e.target.value)}
-      onFocus={(e) => e.target.select()}
-      onBlur={() => {
-        if (cancelling.current) {
-          cancelling.current = false;
-          setDraft(null);
-          return;
-        }
-        commit();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          commit();
-          e.currentTarget.blur();
-        } else if (e.key === "Escape") {
-          cancelling.current = true; // abandon the edit; the zoom never moved
-          setDraft(null);
-          e.currentTarget.blur();
-        }
-      }}
     />
   );
 }
