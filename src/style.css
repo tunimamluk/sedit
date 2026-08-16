@@ -52,6 +52,40 @@
 
 *{ box-sizing: border-box; }
 
+/* ---------- Theme switch ----------
+   A short crossfade instead of a hard snap. The transition is scoped to a
+   class that only exists while the theme is changing, so ordinary hovers
+   stay instant. */
+
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after{
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    fill 220ms ease,
+    stroke 220ms ease,
+    box-shadow 220ms ease !important;
+  transition-delay: 0ms !important;
+}
+
+@keyframes theme-icon-in{
+  from{ transform: rotate(-40deg) scale(0.72); opacity: 0; }
+  to  { transform: none; opacity: 1; }
+}
+
+.theme-icon{ animation: theme-icon-in 260ms cubic-bezier(0.32, 0.72, 0.35, 1); }
+
+@media (prefers-reduced-motion: reduce){
+  .theme-switching,
+  .theme-switching *,
+  .theme-switching *::before,
+  .theme-switching *::after{ transition: none !important; }
+  .theme-icon{ animation: none; }
+}
+
 html, body{
   height: 100%;
   margin: 0;
@@ -115,9 +149,10 @@ kbd{
   line-height: 1;
 }
 
+/* Sized to sit optically level with the wordmark's cap height. */
 .brand-mark{
-  width: 22px;
-  height: 22px;
+  width: 23px;
+  height: 23px;
   color: var(--accent);
   flex: 0 0 auto;
 }

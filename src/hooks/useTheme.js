@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const KEY = "sedit-theme";
 
@@ -16,14 +16,26 @@ function initial() {
 
 export function useTheme() {
   const [theme, setTheme] = useState(initial);
+  const firstRun = useRef(true);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
+    const root = document.documentElement;
+    root.setAttribute("data-theme", theme);
     try {
       localStorage.setItem(KEY, theme);
     } catch {
       /* storage blocked */
     }
+
+    // Colour transitions are switched on only for the moment of the swap, so
+    // they never interfere with hover states or the first paint.
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    root.classList.add("theme-switching");
+    const t = setTimeout(() => root.classList.remove("theme-switching"), 300);
+    return () => clearTimeout(t);
   }, [theme]);
 
   const toggle = useCallback(() => setTheme((t) => (t === "light" ? "dark" : "light")), []);

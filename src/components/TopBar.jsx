@@ -24,7 +24,8 @@ export function TopBar({
           onClick={onToggleTheme}
           title={theme === "light" ? "Switch to dark" : "Switch to light"}
         >
-          <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
+          {/* key remounts the node so the swap animation replays each time */}
+          <Icon key={theme} name={theme === "light" ? "moon" : "sun"} size={15} className="theme-icon" />
         </button>
 
         <input

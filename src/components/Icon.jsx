@@ -93,21 +93,29 @@ export function Icon({ name, size = 16, className = "" }) {
   );
 }
 
+/* Drawn to match Unbounded rather than the UI icon set: wide proportions, a
+   heavy stroke against the wordmark's weight, and a large rounded aperture
+   echoing the typeface's generous counters. */
 export function BrandMark() {
   return (
     <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
       <rect
-        x="2.6"
-        y="4.6"
-        width="18.8"
-        height="14.8"
-        rx="3.6"
+        x="1.4"
+        y="4"
+        width="21.2"
+        height="16"
+        rx="5.4"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="3.2"
       />
-      <path d="M9.9 9.3v5.4l4.6-2.7z" fill="currentColor" />
-      <path d="M2.6 12h4M17.4 12h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M9.9 8.6 15.8 12 9.9 15.4Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
