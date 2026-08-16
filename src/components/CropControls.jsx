@@ -58,9 +58,9 @@ export function CropControls({
         </select>
       </div>
 
-      <button className="crop-secondary" onClick={onCenter}>
+      <button className="crop-secondary" onClick={onCenter} title="Center the region in the frame">
         <Icon name="center" size={14} />
-        <span>Snap to middle</span>
+        <span>Center</span>
       </button>
 
       <div className="crop-actions">

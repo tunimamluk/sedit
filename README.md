@@ -57,11 +57,11 @@ state once per frame for the components that display it.
 - **Move / resize layers** — drag overlays directly on the preview; corner handles resize. The full-frame base layer deliberately ignores canvas clicks (otherwise every click would select it) — pick it from the Layers panel.
 - **Layers panel** (left) — select, hide, reorder, delete.
 - **Properties panel** (right) — split into **Project** (output frame size and total length, always visible) and **Layer** (size in output pixels, crop, opacity, volume/mute, duration for stills). Volume is disabled while a layer is muted.
-- **Timeline** (bottom) — drag the two handles to trim the project start and end; click or drag the bar to scrub. **Zoom** with the +/- buttons (up to 40x, **Fit** returns to full width) when you need finer positioning. Audio clips sit in their own lane below: drag the middle to move a clip in time, drag either **end** to trim it.
+- **Timeline** (bottom) — drag the two handles to trim the project start and end; click or drag the bar to scrub. **Zoom** with the +/- buttons (20% out to 40x in, **Fit** returns to full width) when you need finer positioning. Audio clips sit in their own lane below: drag the middle to move a clip in time, drag either **end** to trim it.
 - **Clip length** — an audio track can be cut to a window of its source, set by dragging either end of the clip or via the *Trim from* / *Length* fields. Clips play at their natural rate, so a 15s window occupies 15s of timeline.
 - **Crop** — cropping is **per layer** and works as a process, from the Layer section of the right panel:
   1. Select a video or image layer and press **Crop layer**.
-  2. Drag the region over the layer. Optionally lock a ratio (default **Free**), hold **Shift** on a corner to keep the current ratio, or **Snap to middle**.
+  2. Drag the region over the layer. Optionally lock a ratio (default **Free**), hold **Shift** on a corner to keep the current ratio, or **Center** it in the frame.
   3. **Apply** (or **Enter**) cuts the layer down to that region; **Cancel** (or **Escape**) discards it. An **Undo** button then appears to restore the layer.
 
   Cropping cuts pixels out of the layer's source rather than scaling it, and only affects that layer — the output frame stays the size of the composition.

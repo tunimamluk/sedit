@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { clamp } from "../lib/time.js";
 import { Icon } from "./Icon.jsx";
 
+export const ZOOM_MIN = 0.2;
+export const ZOOM_MAX = 40;
+
 export function Timeline({
   duration,
   trimIn,
@@ -95,7 +98,10 @@ export function Timeline({
       srcDuration: t.duration || 0,
     };
   };
-  const inner = { width: zoom * 100 + "%", minWidth: "100%" };
+  /* No minWidth: that would pin the stack at full width and make zooming
+     below "fit" impossible. Under 100% the project simply occupies part of
+     the lane, leaving room to place clips past the current end. */
+  const inner = { width: zoom * 100 + "%" };
 
   return (
     <div className={"timeline-wrap" + (disabled ? " is-disabled" : "")}>
@@ -103,7 +109,7 @@ export function Timeline({
         <button
           className="zoom-btn"
           onClick={() => onZoom(zoom / 1.5)}
-          disabled={zoom <= 1.001}
+          disabled={zoom <= ZOOM_MIN + 0.001}
           title="Zoom out"
         >
           <Icon name="zoomOut" size={14} />
@@ -112,12 +118,12 @@ export function Timeline({
         <button
           className="zoom-btn"
           onClick={() => onZoom(zoom * 1.5)}
-          disabled={zoom >= 39.9}
+          disabled={zoom >= ZOOM_MAX - 0.1}
           title="Zoom in"
         >
           <Icon name="zoomIn" size={14} />
         </button>
-        {zoom > 1.001 && (
+        {Math.abs(zoom - 1) > 0.001 && (
           <button className="zoom-btn zoom-fit" onClick={() => onZoom(1)} title="Fit to width">
             Fit
           </button>

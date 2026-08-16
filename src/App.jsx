@@ -4,7 +4,7 @@ import { LayersPanel } from "./components/LayersPanel.jsx";
 import { AudioTrackList } from "./components/AudioTrackList.jsx";
 import { Preview } from "./components/Preview.jsx";
 import { Transport } from "./components/Transport.jsx";
-import { Timeline } from "./components/Timeline.jsx";
+import { Timeline, ZOOM_MAX, ZOOM_MIN } from "./components/Timeline.jsx";
 import { Properties } from "./components/Properties.jsx";
 import { useTheme } from "./hooks/useTheme.js";
 import { usePlayback } from "./hooks/usePlayback.js";
@@ -674,7 +674,7 @@ export default function App() {
             onMoveTrack={(id, offset) => patchTrack(id, { offset })}
             onTrimTrack={trimTrack}
             zoom={zoom}
-            onZoom={(z) => setZoom(clamp(z, 1, 40))}
+            onZoom={(z) => setZoom(clamp(z, ZOOM_MIN, ZOOM_MAX))}
             disabled={!hasMedia}
           />
         </section>

@@ -797,6 +797,11 @@ kbd{
   overflow-x: auto;
   overflow-y: hidden;
   padding-top: 4px;
+  /* the bed the project sits on, so zooming below 100% reads as
+     "the project is shorter than the view" rather than a broken layout */
+  background:
+    repeating-linear-gradient(90deg, transparent 0 7px, var(--border-soft) 7px 8px);
+  border-radius: var(--radius-sm);
 }
 
 .timeline-stack{ position: relative; }
