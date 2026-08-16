@@ -1,8 +1,6 @@
 import { memo } from "react";
-import { clipEnd, clipStart, formatTime, layerLen, layerSpeed, sourceLen } from "../lib/time.js";
+import { clipEnd, clipStart, formatTime, layerLen, sourceLen } from "../lib/time.js";
 import { CropControls } from "./CropControls.jsx";
-
-const SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
 
 function Group({ label, children }) {
   return (
@@ -117,24 +115,6 @@ export const Properties = memo(function Properties({
                 Full file is {formatTime(track.duration || 0)}. Drag either end of the clip in the
                 timeline to trim it there instead.
               </div>
-            </div>
-
-            <Group label="Speed">
-              <select
-                className="prop-input"
-                value={layerSpeed(track)}
-                onChange={(e) => onPatchTrack({ speed: parseFloat(e.target.value) })}
-              >
-                {SPEEDS.map((sp) => (
-                  <option key={sp} value={sp}>
-                    {sp}x
-                  </option>
-                ))}
-              </select>
-            </Group>
-            <div className="prop-hint">
-              Clip {formatTime(sourceLen(track))} &nbsp;&middot;&nbsp; takes{" "}
-              {formatTime(layerLen(track))} on the timeline at {layerSpeed(track)}x
             </div>
 
             <div className="prop-toggle-row">
@@ -272,24 +252,6 @@ export const Properties = memo(function Properties({
 
             {(layer.type === "video" || layer.type === "audio") && (
               <>
-                <Group label="Speed">
-                  <select
-                    className="prop-input"
-                    value={layerSpeed(layer)}
-                    onChange={(e) => onPatch({ speed: parseFloat(e.target.value) })}
-                  >
-                    {SPEEDS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}x
-                      </option>
-                    ))}
-                  </select>
-                </Group>
-                <div className="prop-hint">
-                  Source {formatTime(layer.duration || 0)} &nbsp;&middot;&nbsp; takes{" "}
-                  {formatTime(layerLen(layer))} on the timeline
-                </div>
-
                 <div className="prop-toggle-row">
                   <div className="prop-label">Mute</div>
                   <label className="switch">

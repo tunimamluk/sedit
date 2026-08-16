@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isLayerActive, layerLocalTime, layerSpeed } from "../lib/time.js";
+import { isLayerActive, layerLocalTime } from "../lib/time.js";
 
 
 /* The playback engine.
@@ -106,7 +106,6 @@ export function usePlayback({ layersRef, mediaRef, trimRef, onFrame, onEnd }) {
             /* not seekable yet */
           }
         }
-        el.playbackRate = layerSpeed(l);
       } else if (!el.paused) {
         el.pause();
       }
@@ -146,7 +145,6 @@ export function usePlayback({ layersRef, mediaRef, trimRef, onFrame, onEnd }) {
             /* not seekable yet */
           }
         }
-        el.playbackRate = layerSpeed(l);
         el.play().catch(() => {});
       }
     }

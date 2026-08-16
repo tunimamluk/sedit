@@ -13,6 +13,7 @@ export function CropControls({
   aspect,
   onAspectChange,
   onStart,
+  onCenter,
   onConfirm,
   onCancel,
   onUndo,
@@ -57,6 +58,11 @@ export function CropControls({
         </select>
       </div>
 
+      <button className="crop-secondary" onClick={onCenter}>
+        <Icon name="center" size={14} />
+        <span>Snap to middle</span>
+      </button>
+
       <div className="crop-actions">
         <button className="crop-action crop-cancel" onClick={onCancel} title="Escape">
           <Icon name="close" size={14} />
@@ -69,8 +75,7 @@ export function CropControls({
       </div>
 
       <div className="prop-hint">
-        Drag the region over the layer. It snaps to the edges, centre and thirds
-        &mdash; hold Alt to place it freely, or Shift on a corner to keep its ratio.
+        Drag the region over the layer. Hold Shift on a corner to keep its ratio.
       </div>
     </div>
   );

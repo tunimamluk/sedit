@@ -187,7 +187,6 @@ export default function App() {
           preCrop: null,
           muted: false,
           volume: 1,
-          speed: 1,
         };
 
         if (kind === "audio") {
@@ -205,7 +204,7 @@ export default function App() {
           });
           setTracks((ts) => [
             ...ts,
-            { id, type: "audio", name: file.name, duration: 0, offset: 0, volume: 1, muted: false, speed: 1 },
+            { id, type: "audio", name: file.name, duration: 0, offset: 0, volume: 1, muted: false },
           ]);
           setSelectedTrackId(id);
           setSelectedId(null);
@@ -305,8 +304,6 @@ export default function App() {
       if (item.type === "video" || item.type === "audio") {
         applyLevel(mediaRef.current, item.id, item);
       }
-      const el = mediaRef.current.elements[item.id];
-      if (el && el.playbackRate != null) el.playbackRate = item.speed || 1;
     }
   }, [layers, tracks]);
 
@@ -323,13 +320,12 @@ export default function App() {
     setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
 
-  /* The timeline sends absolute values computed from a baseline captured at
-     pointerdown, so this is a plain patch -- no accumulation here. */
+  // Timeline hands back absolute clip values, so this is just a patch.
   const trimTrack = useCallback(
     (id, patch) => {
-      patchTrack(id, patch);
+      setTracks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     },
-    [patchTrack]
+    []
   );
 
   const removeTrack = useCallback((id) => {
@@ -678,7 +674,7 @@ export default function App() {
             onMoveTrack={(id, offset) => patchTrack(id, { offset })}
             onTrimTrack={trimTrack}
             zoom={zoom}
-            onZoom={(fn) => setZoom((z) => clamp(fn(z), 0.25, 40))}
+            onZoom={(z) => setZoom(clamp(z, 1, 40))}
             disabled={!hasMedia}
           />
         </section>
