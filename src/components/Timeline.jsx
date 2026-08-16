@@ -5,6 +5,15 @@ import { Icon } from "./Icon.jsx";
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 40;
 
+/* Zoom is continuous. The slider is logarithmic so a given amount of travel
+   changes the scale by the same *ratio* everywhere -- a linear slider would
+   waste most of its length between 20x and 40x and give almost no control
+   down at 30%. */
+const zoomToSlider = (z) =>
+  (Math.log(z / ZOOM_MIN) / Math.log(ZOOM_MAX / ZOOM_MIN)) * 100;
+const sliderToZoom = (v) =>
+  ZOOM_MIN * Math.pow(ZOOM_MAX / ZOOM_MIN, v / 100);
+
 export function Timeline({
   duration,
   trimIn,
@@ -22,7 +31,23 @@ export function Timeline({
   disabled,
 }) {
   const barRef = useRef(null);
+  const scrollRef = useRef(null);
   const [drag, setDrag] = useState(null);
+
+  /* Ctrl/Cmd + wheel zooms continuously. Registered by hand because React
+     attaches wheel listeners passively, and a passive listener cannot
+     preventDefault the browser's own page zoom. */
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      onZoom(zoom * Math.exp(-e.deltaY * 0.002));
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [zoom, onZoom]);
 
   const timeAt = useCallback(
     (clientX) => {
@@ -114,7 +139,29 @@ export function Timeline({
         >
           <Icon name="zoomOut" size={14} />
         </button>
-        <span className="zoom-label">{Math.round(zoom * 100)}%</span>
+        <input
+          className="zoom-slider"
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={zoomToSlider(zoom)}
+          onChange={(e) => onZoom(sliderToZoom(parseFloat(e.target.value)))}
+          title="Drag to zoom"
+        />
+        <input
+          className="zoom-input"
+          type="number"
+          min={Math.round(ZOOM_MIN * 100)}
+          max={ZOOM_MAX * 100}
+          value={Math.round(zoom * 100)}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            if (!Number.isNaN(v)) onZoom(v / 100);
+          }}
+          title="Type an exact zoom"
+        />
+        <span className="zoom-pct">%</span>
         <button
           className="zoom-btn"
           onClick={() => onZoom(zoom * 1.5)}
@@ -123,14 +170,9 @@ export function Timeline({
         >
           <Icon name="zoomIn" size={14} />
         </button>
-        {Math.abs(zoom - 1) > 0.001 && (
-          <button className="zoom-btn zoom-fit" onClick={() => onZoom(1)} title="Fit to width">
-            Fit
-          </button>
-        )}
       </div>
 
-      <div className="timeline-scroll">
+      <div className="timeline-scroll" ref={scrollRef}>
         {/* One stack holding every lane, so the playhead is a single
             continuous line instead of one segment per lane. */}
         <div className="timeline-stack" style={inner}>
